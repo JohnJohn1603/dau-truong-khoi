@@ -7,13 +7,37 @@ Bản thử chiến đấu (Giai đoạn 1) cho một game đấu kiếm sinh t�
 
 ## Chạy thử trên máy
 
-Toàn bộ game nằm trong một file `dau-truong-khoi.html`. Three.js r128 được tải từ cdnjs, nên máy cần có mạng.
+Game không cần cài đặt hay build. Three.js r128 được tải từ cdnjs, nên máy cần có mạng.
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Mở http://localhost:8000/dau-truong-khoi.html. Game cần chuột và bàn phím.
+Mở http://localhost:8000. Game cần chuột và bàn phím.
+
+## Cấu trúc thư mục
+
+```
+index.html        Khung trang: HUD, menu, phòng tập, màn hình cuối trận, trang kết quả
+css/style.css     Toàn bộ giao diện
+js/               Mã game, nạp theo đúng thứ tự trong index.html
+  config.js       Tiện ích, thông số chỉnh được, bảng vũ khí, cấu hình bot
+  world.js        Renderer, bầu trời, ánh sáng, texture voxel, đấu trường
+  models.js       Mô hình vũ khí và hiệp sĩ, tư thế vung đòn, dữ liệu người đấu
+  combat.js       Luật chiến đấu: vung, đổi đòn, nhử, đỡ, phản đòn, trúng đòn
+  ai.js           Bot 3 mức
+  input.js        Di chuyển, va chạm, chuột và bàn phím
+  effects.js      Âm thanh tự tạo, hạt, HUD
+  training.js     Phòng tập phản đòn
+  match.js        Luồng trận, tạm dừng, màn hình cuối trận
+  results.js      Lưu kết quả tester, trang tổng hợp cổng
+  ui.js           Menu, bảng chỉnh thông số
+  main.js         Vòng lặp khung hình, camera
+```
+
+Các file JS là script thường, không phải module. Chúng dùng chung biến toàn cục, nên thứ tự nạp trong `index.html` quan trọng: file sau được dùng biến và hàm của file trước.
+
+Muốn chỉnh cân bằng thì sửa `WEAPONS` (thời gian vung, sát thương, tầm đánh, thể lực) và `BOT_CFG` (độ khó bot) trong `js/config.js`.
 
 Khi chạy trên máy, phần lưu kết quả lên kho chung không hoạt động, vì kho này chỉ có trên claude.ai. Nút "Sao chép kết quả" vẫn dùng được.
 

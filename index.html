@@ -1,0 +1,138 @@
+<meta charset="utf-8">
+<title>Đấu Trường Khối</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&family=Grenze+Gotisch:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+
+<canvas id="c" tabindex="0" aria-label="Đấu trường 3D"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div id="vign"></div>
+  <div id="cross"></div>
+  <div id="bBars" class="bars">
+    <div id="score">0 – 0</div>
+    <div class="who"><b id="botName">Hiệp sĩ Xám</b><span id="botDiff">Vừa</span></div>
+    <div class="bar"><i id="hpB"></i></div>
+    <div class="bar st" id="stBw"><i id="stB"></i></div>
+  </div>
+  <div id="pBars" class="bars">
+    <div class="who"><b>Bạn</b><span id="hpPt">100</span></div>
+    <div class="bar"><i id="hpP"></i></div>
+    <div class="bar st" id="stPw"><i id="stP"></i></div>
+  </div>
+  <div id="wpnBox"><b id="wpnName">Kiếm</b>Trái chém · Cuộn đập/đâm · Phải đỡ · Q nhử</div>
+  <div id="fps"></div>
+  <div id="ind" hidden><div class="g" id="indG"></div><div class="l" id="indL"></div><div class="pb"><i id="indP"></i></div></div>
+  <div id="popups"></div>
+  <div id="cd" hidden></div>
+  <div id="hint" hidden></div>
+  <div id="trainHud" hidden><span class="lbl" id="thTitle">Phòng tập phản đòn</span><div class="big info" id="thLast">Chờ bot ra đòn…</div><div class="sub" id="thSub"></div><div id="thTally"></div></div>
+</div>
+
+<div class="overlay" id="menu">
+  <div class="panel">
+    <header>
+      <p class="eyebrow">Bản thử chiến đấu · Giai đoạn 1 · 1v1 với bot</p>
+      <h1>Đấu Trường Khối</h1>
+      <p class="lede">Đấu tay đôi góc nhìn thứ nhất trong đấu trường voxel. Thắng 3 hiệp trước là thắng trận. Chém thì dễ, đâm và đập cần canh, đỡ đúng thời điểm mới là kỹ năng thật.</p>
+    </header>
+    <div class="opts">
+      <div class="opt"><span class="lbl">Độ khó bot</span>
+        <div class="seg" data-key="diff">
+          <button type="button" data-v="easy">Dễ<small>Chỉ biết chém</small></button>
+          <button type="button" data-v="med">Vừa<small>Biết đỡ đòn</small></button>
+          <button type="button" data-v="hard">Khó<small>Nhử đòn, phản đòn</small></button>
+        </div></div>
+      <div class="row" style="gap:22px">
+        <div class="opt"><span class="lbl">Vũ khí của bạn</span>
+          <div class="seg" data-key="pw"><button type="button" data-v="sword">Kiếm<small>Nhanh, đâm tốt</small></button><button type="button" data-v="axe">Rìu<small>Chậm, đập mạnh</small></button></div></div>
+        <div class="opt"><span class="lbl">Vũ khí của bot</span>
+          <div class="seg" data-key="bw"><button type="button" data-v="rand">Ngẫu nhiên</button><button type="button" data-v="sword">Kiếm</button><button type="button" data-v="axe">Rìu</button></div></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="optInd"> Hiện chỉ báo đòn của bot (cho người mới)</label>
+      <div class="opt"><label class="lbl" for="testerName">Tên của bạn (ghi kèm kết quả gửi cho người làm game)</label><input class="txt" id="testerName" maxlength="32" placeholder="Ví dụ: Minh" autocomplete="nickname"></div>
+    </div>
+    <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
+    <ul class="keys">
+      <li><span><kbd>Chuột trái</kbd></span><span>Chém ngang</span></li>
+      <li><span><kbd>Cuộn lên</kbd> / <kbd>R</kbd></span><span>Đập thẳng</span></li>
+      <li><span><kbd>Cuộn xuống</kbd> / <kbd>E</kbd></span><span>Đâm xiên</span></li>
+      <li><span><kbd>Chuột phải</kbd> / <kbd>F</kbd> giữ</span><span>Đỡ</span></li>
+      <li><span>Bấm đúng nút đòn đối thủ</span><span>Phản đòn khớp loại</span></li>
+      <li><span>Đang vung, bấm nút đòn khác</span><span>Đổi đòn giữa chừng</span></li>
+      <li><span><kbd>Q</kbd></span><span>Nhử đòn (huỷ khi đang vào đòn)</span></li>
+      <li><span><kbd>W A S D</kbd> · <kbd>Shift</kbd></span><span>Di chuyển · chạy</span></li>
+      <li><span><kbd>Esc</kbd></span><span>Tạm dừng, chỉnh thông số</span></li>
+      <li><span><kbd>M</kbd></span><span>Bật/tắt âm thanh</span></li>
+    </ul>
+    <p class="tip"><b>Đỡ (chuột phải):</b> đỡ được mọi đòn nhưng tốn thể lực, hết thể lực là vỡ thế. Bấm đỡ trong <b id="pwTxt">200</b> ms trước khi đòn chạm là đỡ chuẩn, không tốn thể lực. Bấm đỡ liên tục sẽ mất khoảng đỡ chuẩn.<br>
+    <b>Phản đòn khớp loại:</b> trong <b id="cwTxt">250</b> ms trước khi đòn chạm, bấm đúng loại đòn đối thủ đang ra (chém → chuột trái, đập → cuộn lên, đâm → cuộn xuống). Đúng loại thì đỡ được, không tốn thể lực, đối thủ bị bật đòn và đòn của bạn ra rất nhanh. Sai loại là ăn đòn. Mỗi loại đòn có tư thế và tiếng vung riêng để nhận ra sớm.<br>
+    <b>Đổi đòn:</b> đang vung, bấm nút của loại đòn khác để chuyển sang đòn đó (tốn thêm thể lực, chậm thêm một chút, mỗi đòn đổi một lần). Dùng để lừa người đang chờ phản đòn.</p>
+    <details id="tuneWrapMenu"><summary>Chỉnh thông số</summary><div id="tuneHostMenu"></div></details>
+  </div>
+</div>
+
+<div class="overlay" id="pause" hidden>
+  <div class="panel">
+    <header><p class="eyebrow">Tạm dừng</p><h2>Nghỉ giữa hiệp</h2></header>
+    <div class="row"><button class="cta" id="resumeBtn" type="button">Tiếp tục</button><button class="ghost" id="quitBtn" type="button">Về menu</button></div>
+    <div><span class="lbl">Thông số (chỉnh trực tiếp, không cần tải lại)</span><div id="tuneHostPause"></div></div>
+  </div>
+</div>
+
+<div class="overlay" id="endScr" hidden>
+  <div class="panel">
+    <header><p class="eyebrow" id="endEyebrow">Kết thúc trận</p><h2 id="endTitle">Chiến thắng</h2><p class="lede" id="endSub"></p></header>
+    <div class="stats" id="endStats"></div>
+    <div class="fb">
+      <div id="againQ"><span class="lbl">Muốn đánh thêm trận nữa không?</span>
+        <div class="row" style="margin-top:6px"><button class="ghost" id="againYes" type="button" aria-pressed="false">Có</button><button class="ghost" id="againNo" type="button" aria-pressed="false">Không</button></div></div>
+      <label class="lbl" for="fbNote">Góp ý (không bắt buộc)</label>
+      <textarea id="fbNote" rows="2" maxlength="400" placeholder="Chỗ nào khó hiểu, quá nhanh, quá khó, hay đã tay?"></textarea>
+      <div class="row"><button class="ghost" id="fbSend" type="button">Gửi góp ý</button><button class="ghost" id="copyRes" type="button">Sao chép kết quả</button><span class="savest" id="saveState"></span></div>
+      <textarea id="copyBox" rows="3" readonly hidden aria-label="Kết quả để sao chép"></textarea>
+    </div>
+    <div class="row"><button class="cta" id="againBtn" type="button">Đấu lại</button><button class="ghost" id="menuBtn" type="button">Đổi thiết lập</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="trainScr" hidden>
+  <div class="panel">
+    <header><p class="eyebrow">Phòng tập</p><h2>Phản đòn khớp loại</h2>
+      <p class="lede">Bot đứng trước mặt và ra đòn đều đặn, không gây sát thương. Bấm đúng nút của loại đòn bot đang ra, trong khoảng ngay trước khi đòn chạm. Mỗi lần game báo bạn đúng hay sai loại, và bấm sớm hay muộn bao nhiêu ms.</p></header>
+    <div class="opt"><span class="lbl">Loại đòn bot ra</span>
+      <div class="seg" data-key="tType"><button type="button" data-v="slash">Chém<small>Phản: chuột trái</small></button><button type="button" data-v="over">Đập<small>Phản: cuộn lên</small></button><button type="button" data-v="stab">Đâm<small>Phản: cuộn xuống</small></button><button type="button" data-v="rand">Ngẫu nhiên</button></div></div>
+    <div class="opt"><span class="lbl">Tốc độ đòn</span>
+      <div class="seg" data-key="tSpeed"><button type="button" data-v="slow">Chậm<small>Vung lâu gấp rưỡi</small></button><button type="button" data-v="normal">Như trong trận</button></div></div>
+    <div class="row"><button class="cta" id="trainStart" type="button">Bắt đầu tập</button><button class="ghost" id="trainBack" type="button">Quay lại</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="resScr" hidden>
+  <div class="panel wide">
+    <header><p class="eyebrow">Chỉ người làm game thấy trang này</p><h2>Kết quả tester</h2>
+      <p class="lede" id="resNote">Đang tải kết quả…</p></header>
+    <div><span class="lbl">Cổng Giai đoạn 1</span><div class="gate" id="resGate" style="margin-top:6px"></div></div>
+    <div><span class="lbl">Theo tester</span><div class="tblwrap" style="margin-top:6px"><table class="res" id="resTable"></table></div></div>
+    <div><span class="lbl">Phòng tập phản đòn</span><div class="tblwrap" style="margin-top:6px"><table class="res" id="resTrain"></table></div></div>
+    <div class="fb"><label class="lbl" for="importBox">Thêm kết quả tester dán vào (mỗi dòng bắt đầu bằng DTK|)</label>
+      <textarea id="importBox" rows="3" placeholder="Dán kết quả bạn bè gửi qua nhóm chat vào đây"></textarea>
+      <div class="row"><button class="ghost" id="importBtn" type="button">Thêm kết quả</button><span class="savest" id="importState"></span></div></div>
+    <div class="row"><button class="cta" id="resClose" type="button">Đóng</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/world.js"></script>
+<script src="js/models.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/input.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/training.js"></script>
+<script src="js/match.js"></script>
+<script src="js/results.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
