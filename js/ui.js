@@ -4,7 +4,6 @@
 document.querySelectorAll('.seg[data-key]').forEach(seg=>{const key=seg.dataset.key;const sync=()=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===CFG[key])));
   seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;CFG[key]=b.dataset.v;sync();save();if(key==='diff'||key==='bw'){if(phase==='attract'){bot.weapon=WEAPONS[CFG.bw==='axe'?'axe':'sword'];setupKnight();}}});sync();});
 $('optInd').checked=CFG.indicator;$('optInd').onchange=e=>{CFG.indicator=e.target.checked;save();};
-$('optDbl').checked=CFG.dblTap;$('optDbl').onchange=e=>{CFG.dblTap=e.target.checked;save();};
 if(matchMedia('(pointer: coarse)').matches&&!matchMedia('(any-pointer: fine)').matches)$('touchWarn').hidden=false;
 const TUNE=[
   ['ping','Giả lập ping (khứ hồi)',0,300,10,v=>v?v+' ms':'Tắt'],
