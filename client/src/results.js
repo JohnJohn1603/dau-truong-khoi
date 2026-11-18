@@ -1,13 +1,13 @@
 // Lưu kết quả tester và trang tổng hợp cổng Giai đoạn 1
-'use strict';
+import { $, CFG, save } from './config.js';
 /* ---------------- tester results (db) ---------------- */
 // Each viewer writes one document results/<their id> holding their sessions; only the owner/editors can read everyone's.
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-function testerName(){return($('testerName').value||'').trim().slice(0,32)||'Ẩn danh';}
+export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+export function testerName(){return($('testerName').value||'').trim().slice(0,32)||'Ẩn danh';}
 $('testerName').value=CFG.name||'';$('testerName').addEventListener('change',()=>{CFG.name=$('testerName').value.trim().slice(0,32);save();});
-const Data={db:null,user:null,uid:null,writable:true,cache:null,chain:Promise.resolve(),canRead:false};
-function setSave(msg,kind){const el=$('saveState');el.textContent=msg;el.className='savest'+(kind?' '+kind:'');}
+export const Data={db:null,user:null,uid:null,writable:true,cache:null,chain:Promise.resolve(),canRead:false};
+export function setSave(msg,kind){const el=$('saveState');el.textContent=msg;el.className='savest'+(kind?' '+kind:'');}
 (async()=>{
   try{
     if(!window.claude||!window.claude.use)return;
@@ -16,8 +16,8 @@ function setSave(msg,kind){const el=$('saveState');el.textContent=msg;el.classNa
     if(user){Data.uid=await user.id();const ed=await user.canEdit();if(ed){Data.canRead=true;$('resBtn').hidden=false;}const c=await user.can('data.write');if(c===false)Data.writable=false;}
   }catch(e){}
 })();
-function canSave(){return!!(Data.db&&Data.uid&&Data.writable);}
-function persist(entry){
+export function canSave(){return!!(Data.db&&Data.uid&&Data.writable);}
+export function persist(entry){
   entry.tester=testerName();
   if(!canSave()){setSave('Không tự lưu được ở tài khoản này. Bấm "Sao chép kết quả" rồi dán vào nhóm chat.','warn');return;}
   setSave('Đang lưu…');
@@ -30,7 +30,8 @@ function persist(entry){
     await ref.set(Data.cache);setSave('Đã lưu kết quả. Cảm ơn bạn!','ok');
   }).catch(e=>{if(e&&e.code==='invalid_argument')Data.writable=false;setSave('Không lưu được. Bấm "Sao chép kết quả" rồi dán vào nhóm chat.','warn');});
 }
-let resUnsub=null,resDocs=[];
+export let resUnsub=null,resDocs=[];
+export function setResDocs(d){resDocs=d;renderResults();}
 $('resBtn').onclick=()=>{
   $('menu').hidden=true;$('resScr').hidden=false;
   if(!Data.db){$('resNote').textContent='Không đọc được kho kết quả ở chế độ xem này.';return;}
@@ -41,8 +42,8 @@ $('resBtn').onclick=()=>{
     e=>{clearTimeout(timer);$('resNote').textContent='Không đọc được kho kết quả.';});
 };
 $('resClose').onclick=()=>{$('resScr').hidden=true;$('menu').hidden=false;};
-function allSessions(){const seen=new Set(),out=[];for(const d of resDocs){for(const s of(Array.isArray(d.sessions)?d.sessions:[])){if(!s||typeof s!=='object'||seen.has(s.id))continue;seen.add(s.id);out.push(s);}}return out.sort((a,b)=>(a.at||0)-(b.at||0));}
-function renderResults(){
+export function allSessions(){const seen=new Set(),out=[];for(const d of resDocs){for(const s of(Array.isArray(d.sessions)?d.sessions:[])){if(!s||typeof s!=='object'||seen.has(s.id))continue;seen.add(s.id);out.push(s);}}return out.sort((a,b)=>(a.at||0)-(b.at||0));}
+export function renderResults(){
   // free-for-all games are kept apart: the Phase 1 gate is about the 1v1 duel
   const all=allSessions(),ffaN=all.filter(s=>s.gm==='ffa3').length,ss=all.filter(s=>s.gm!=='ffa3'),matches=ss.filter(s=>s.kind==='match'),trains=ss.filter(s=>s.kind==='train');
   const by={};for(const s of ss){const n=String(s.tester||'Ẩn danh');(by[n]=by[n]||[]).push(s);}

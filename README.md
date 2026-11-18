@@ -1,45 +1,51 @@
 # Đấu Trường Khối
 
-Bản thử chiến đấu (Giai đoạn 1) cho một game đấu kiếm sinh tồn, góc nhìn thứ nhất, đồ hoạ voxel, chạy trên trình duyệt. Bạn đấu tay đôi 1v1 với bot. Thắng 3 hiệp trước là thắng trận.
+Game đấu kiếm sinh tồn góc nhìn thứ nhất, đồ hoạ voxel, chạy trên trình duyệt. Hiện có đấu tay đôi với bot, đánh tự do 3 người (bạn và 2 bot) và phòng tập phản đòn. Thắng 3 hiệp trước là thắng trận.
 
 - **Bản đang chạy:** https://claude.ai/artifact/5U3VY2e5M5hA5eaqv9Uens
 - **Lộ trình phát triển:** https://claude.ai/artifact/5hR5UfkL8GRr3q8JhR6S7j
 
-## Chạy thử trên máy
+## Chạy trên máy
 
-Game không cần cài đặt hay build. Three.js r128 được tải từ cdnjs, nên máy cần có mạng.
+Cần Node.js 18 trở lên.
 
 ```bash
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-Mở http://localhost:8000. Game cần chuột và bàn phím.
+Mở http://localhost:5173. Game cần chuột và bàn phím.
+
+Các lệnh khác:
+
+| Lệnh | Việc |
+|---|---|
+| `npm run build` | Build client ra `client/dist/` (bản đưa lên claude.ai, sau này GitHub Pages) |
+| `npm run sim` | Chạy một trận đánh tự do 3 người trên Node.js, không cần trình duyệt, và kiểm tra tính tất định |
+| `npm run typecheck` | Kiểm tra kiểu TypeScript cho `shared/` và `server/` |
+
+Khi chạy trên máy, phần lưu kết quả lên kho chung không hoạt động, vì kho này chỉ có trên claude.ai. Nút "Sao chép kết quả" vẫn dùng được.
 
 ## Cấu trúc thư mục
 
 ```
-index.html        Khung trang: HUD, menu, phòng tập, màn hình cuối trận, trang kết quả
-css/style.css     Toàn bộ giao diện
-js/               Mã game, nạp theo đúng thứ tự trong index.html
-  config.js       Tiện ích, thông số chỉnh được, bảng vũ khí, cấu hình bot
-  world.js        Renderer, bầu trời, ánh sáng, texture voxel, đấu trường
-  models.js       Mô hình vũ khí và hiệp sĩ, tư thế vung đòn, dữ liệu người đấu
-  combat.js       Luật chiến đấu: vung, đổi đòn, nhử, đỡ, phản đòn, trúng đòn
-  ai.js           Bot 3 mức
-  input.js        Di chuyển, va chạm, chuột và bàn phím
-  effects.js      Âm thanh tự tạo, hạt, HUD
-  training.js     Phòng tập phản đòn
-  match.js        Luồng trận, tạm dừng, màn hình cuối trận
-  results.js      Lưu kết quả tester, trang tổng hợp cổng
-  ui.js           Menu, bảng chỉnh thông số
-  main.js         Vòng lặp khung hình, camera
+shared/src/      Lõi chiến đấu dùng chung, TypeScript, không phụ thuộc trình duyệt hay Three.js
+  data.ts        Bảng vũ khí, cấu hình bot, thông số chỉnh được, hằng số (bước 60 Hz, giới hạn xoay…)
+  sim.ts         Mô phỏng: người đấu, luật vung / đổi đòn / nhử / đỡ / phản đòn / lách / trúng đòn, hiệp và trận
+  ai.ts          Bộ não bot 3 mức, tự chọn mục tiêu
+  arena.ts       Va chạm với tường và cột
+  rng.ts         Số ngẫu nhiên có hạt giống (cùng hạt giống → cùng kết quả)
+client/          Dự án Vite: trang game chạy trên trình duyệt
+  index.html     Khung trang: HUD, menu, phòng tập, màn hình cuối trận, trang kết quả
+  src/core.js    Cầu nối tới lõi chiến đấu (một Sim duy nhất)
+  src/effects.js Âm thanh, hạt, HUD, và xử lý sự kiện từ lõi (trúng, đỡ, phản đòn…)
+  src/…          Cảnh, mô hình hiệp sĩ, điều khiển, luồng trận, phòng tập, kết quả tester, menu, vòng lặp
+server/src/      Phần chạy trên Node.js; hiện có headless.ts để chạy trận không cần trình duyệt
 ```
 
-Các file JS là script thường, không phải module. Chúng dùng chung biến toàn cục, nên thứ tự nạp trong `index.html` quan trọng: file sau được dùng biến và hàm của file trước.
+Lõi chiến đấu không tự vẽ hay phát âm thanh. Nó chỉ báo ra **sự kiện** (`swing`, `hit`, `counter`, `perfect`, `dodge`, `roundEnd`…), và client quyết định hiển thị thế nào. Máy chủ ở bước 3 sẽ chạy đúng lõi này và gửi các sự kiện đó cho người chơi.
 
-Muốn chỉnh cân bằng thì sửa `WEAPONS` (thời gian vung, sát thương, tầm đánh, thể lực) và `BOT_CFG` (độ khó bot) trong `js/config.js`.
-
-Khi chạy trên máy, phần lưu kết quả lên kho chung không hoạt động, vì kho này chỉ có trên claude.ai. Nút "Sao chép kết quả" vẫn dùng được.
+Muốn chỉnh cân bằng thì sửa `WEAPONS` (thời gian vung, sát thương, tầm đánh, thể lực) và `BOT_CFG` (độ khó bot) trong `shared/src/data.ts`.
 
 ## Điều khiển
 
@@ -53,6 +59,7 @@ Khi chạy trên máy, phần lưu kết quả lên kho chung không hoạt đ�
 | Đang vung, bấm nút đòn khác | Đổi đòn giữa chừng |
 | Q | Nhử đòn |
 | W A S D, Shift | Di chuyển, chạy |
+| Nhấn đúp A / D | Lách trái / phải |
 | Esc | Tạm dừng, chỉnh thông số |
 | M | Bật/tắt âm thanh |
 
@@ -75,7 +82,7 @@ Thời gian từ lúc vung tới lúc chạm (kiếm / rìu):
 Bot có ba mức:
 - **Dễ**: chỉ chém.
 - **Vừa**: biết đỡ, đôi khi phản đòn.
-- **Khó**: phản đòn, nhử đòn và đổi đòn.
+- **Khó**: phản đòn, nhử đòn, đổi đòn và lách.
 
 Các thông số chính (khoảng đỡ, khoảng phản đòn, tốc độ đòn, sát thương, hồi thể lực, phản xạ bot) chỉnh trực tiếp trong game, bằng bảng mở bằng phím Esc.
 
@@ -88,4 +95,6 @@ Các thông số chính (khoảng đỡ, khoảng phản đòn, tốc độ đò
 
 ## Trạng thái
 
-Đang ở Giai đoạn 1 (prototype chiến đấu 1v1 với bot) và chuẩn bị chơi thử để xét cổng. Sau khi qua cổng, dự án sẽ chuyển sang Vite + TypeScript và tách code chiến đấu thành module riêng, theo lộ trình.
+- Giai đoạn 1 (chiến đấu 1v1 với bot): đang chơi thử để xét cổng.
+- Giai đoạn 3a (phòng 3 người đánh tự do qua mạng): đã xong bước 1 (lõi cho N người, 60 Hz, giả lập ping) và bước 2 (Vite + TypeScript, `shared/` `client/` `server/`). Bước tiếp theo là máy chủ phòng 3 người trong `server/`.
+- Client vẫn viết bằng JavaScript (module ES). Phần dùng chung với máy chủ đã là TypeScript; client sẽ chuyển dần sang TypeScript.
