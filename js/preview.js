@@ -7,6 +7,7 @@
 const PV={open:false,ready:false,w:'sword',skin:'med',speed:1,auto:true,yaw:.55,pitch:.12,dist:4.9,swayT:0,
   renderer:null,scene:null,cam:null,k:null,f:null,last:0,raf:0,drag:null,lastWheel:0,idleT:0};
 const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng',dead:'Gục ngã'};
+const PV_DEATH={slash:'chém',stab:'đâm',over:'đập'};
 const PV_TARGET=new THREE.Vector3(0,1.0,0);
 
 function pvInit(){
@@ -54,7 +55,7 @@ function pvParry(on){const f=PV.f;initAudio();PV.idleT=0;
 function pvStun(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;SFX.hit();pvSet('stun',.6);}
 function pvHit(){initAudio();PV.idleT=0;PV.f.flash=1;SFX.hit();}
 // knight goes down, lies there a moment, then gets back up (viewer only)
-function pvDie(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;PV.f.deadT=0;SFX.boom();pvSet('dead',2.6);}
+function pvDie(type){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;PV.f.deadT=0;PV.f.killType=type;SFX.boom();pvSet('dead',2.6);}
 function pvStep(dt){const f=PV.f;f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
   if(f.state==='dead'){f.deadT+=dt;if(f.t>=f.dur){f.deadT=0;pvSet('idle');}return;}
   if(f.state==='windup'&&f.t>=f.dur){pvSet('release',f.atk.rel/S.atkSpeed);SFX.whoosh(f.atkType==='over'||f.weapon.id==='axe',false);}
@@ -63,7 +64,7 @@ function pvStep(dt){const f=PV.f;f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
   if(f.state!=='idle'&&f.state!=='parry'&&f.dur>0)$('vBar').style.transform=`scaleX(${clamp(f.t/f.dur,0,1)})`;
 }
 function pvLabel(){const f=PV.f;if(!f)return;const el=$('vState');
-  const what=(f.state==='windup'||f.state==='release'||f.state==='recovery')?' · '+ATK_NAME[f.atkType]:'';
+  const what=(f.state==='windup'||f.state==='release'||f.state==='recovery')?' · '+ATK_NAME[f.atkType]:f.state==='dead'?' do '+PV_DEATH[f.killType]:'';
   const t=f.dur>0?` · ${Math.round(f.dur*1000)} ms`:'';
   el.textContent=PV_STATE[f.state]+what+t;el.dataset.s=f.state;
   if(f.state==='idle'||f.state==='parry')$('vBar').style.transform='scaleX(0)';}
@@ -73,7 +74,7 @@ function pvFrame(t){
   if(!PV.open)return;PV.raf=requestAnimationFrame(pvFrame);
   const rdt=Math.min(.05,(t-PV.last)/1000);PV.last=t;const dt=rdt*PV.speed;
   pvStep(dt);
-  const k=PV.k,f=PV.f;updateKnight(k,f,poseFor(f,dt),dt);
+  const k=PV.k,f=PV.f;k.g.position.set(0,0,0);k.g.rotation.y=0;updateKnight(k,f,poseFor(f,dt),dt);
   for(const m of k.mats)m.emissive.setRGB(f.flash*.6,f.flash*.08,f.flash*.05);
   // idle drift: sway gently around the front three-quarter view instead of spinning to the back
   if(PV.auto&&!PV.drag){PV.idleT+=rdt;if(PV.idleT>2.5){PV.swayT+=rdt;PV.yaw=lerp(PV.yaw,.35+Math.sin(PV.swayT*.45)*.75,1-Math.exp(-1.5*rdt));}}
@@ -107,7 +108,7 @@ function pvBindInput(cv){
     if(a==='parry'){b.addEventListener('pointerdown',e=>{e.preventDefault();pvParry(true);});
       for(const ev of['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>pvParry(false));
       b.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat)pvParry(true);});b.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')pvParry(false);});}
-    else if(a==='stun')b.onclick=pvStun;else if(a==='hit')b.onclick=pvHit;else if(a==='die')b.onclick=pvDie;else b.onclick=()=>pvAttack(a);});
+    else if(a==='stun')b.onclick=pvStun;else if(a==='hit')b.onclick=pvHit;else if(a.startsWith('die-'))b.onclick=()=>pvDie(a.slice(4));else b.onclick=()=>pvAttack(a);});
   // option groups (local to the viewer, they don't change match settings)
   document.querySelectorAll('[data-pv-opt]').forEach(seg=>{const key=seg.dataset.pvOpt;
     const sync=()=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(PV[key])===b.dataset.v)));
