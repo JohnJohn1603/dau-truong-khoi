@@ -120,7 +120,7 @@ function resolveHit(att,def){
   if(def.state==='windup'){setState(def,'stun',.25);if(def.isBot)popup('Ngắt đòn','good');}
   else if(type==='over'&&def.state!=='stun'){setState(def,'stun',a.stun);popup(def.isBot?'Choáng':'Bạn bị choáng',def.isBot?'good':'bad');}
 }
-function midpoint(a,b){const m=a.pos.clone().lerp(b.pos,.55);m.y=1.35;return m;}
+function midpoint(a,b){const m=a.pos.clone().lerp(b.pos,.55);m.y=1.45;return m;}
 function dirFrom(a,b){return tmpV2.set(b.pos.x-a.pos.x,0,b.pos.z-a.pos.z).normalize();}
 function damage(def,dmg,att){
   if(mode==='training'){def.flash=1;SFX.hit();blood(midpoint(att,def),8);hitstop=S.hitstop/1000;if(!def.isBot){hurt=.5;shake=Math.max(shake,.2);}else dmgNum(def,'trúng');return;}
