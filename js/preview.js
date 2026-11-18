@@ -7,7 +7,7 @@
 const PV={open:false,ready:false,w:'sword',skin:'med',speed:1,auto:true,yaw:.55,pitch:.12,dist:4.9,swayT:0,
   renderer:null,scene:null,cam:null,k:null,f:null,last:0,raf:0,drag:null,lastWheel:0,idleT:0};
 const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng'};
-const PV_TARGET=new THREE.Vector3(0,1.08,0);
+const PV_TARGET=new THREE.Vector3(0,1.0,0);
 
 function pvInit(){
   if(PV.ready)return;PV.ready=true;
@@ -16,9 +16,9 @@ function pvInit(){
   r.setPixelRatio(Math.min(window.devicePixelRatio||1,2));r.shadowMap.enabled=true;r.shadowMap.type=THREE.PCFSoftShadowMap;
   const sc=new THREE.Scene();sc.background=new THREE.Color(0x15181e);sc.fog=new THREE.Fog(0x15181e,7,14);
   sc.add(new THREE.HemisphereLight(0xb8c4dc,0x4a3a2a,.55));
-  const key=new THREE.DirectionalLight(0xffd2aa,1.05);key.position.set(-3,5,-4);key.castShadow=true;key.shadow.mapSize.set(1024,1024);
+  const key=new THREE.DirectionalLight(0xffd2aa,.9);key.position.set(-3,5,-4);key.castShadow=true;key.shadow.mapSize.set(1024,1024);
   Object.assign(key.shadow.camera,{left:-3,right:3,top:3,bottom:-3,near:1,far:15});key.shadow.bias=-.0008;sc.add(key);
-  const rim=new THREE.DirectionalLight(0x8fb0ff,.55);rim.position.set(3,3,4);sc.add(rim);
+  const rim=new THREE.DirectionalLight(0x8fb0ff,.35);rim.position.set(3,3,4);sc.add(rim);
   // small voxel plinth: sand top, cobble rim
   const box=new THREE.BoxGeometry(1,1,1),m=new THREE.Matrix4(),R=3;const sand=[],rimB=[];
   for(let x=-R;x<R;x++)for(let z=-R;z<R;z++){const d=Math.hypot(x+.5,z+.5);if(d>R+.2)continue;(d>R-1?rimB:sand).push([x,z]);}
@@ -34,7 +34,7 @@ function pvResize(){if(!PV.renderer)return;const st=$('vStage'),w=st.clientWidth
 
 function pvBuild(){
   if(PV.k){PV.scene.remove(PV.k.g);PV.k.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
-  const k=buildKnight(TABARD[PV.skin]);const wp=buildWeapon(PV.w);wp.w.scale.setScalar(1.15);k.pivot.add(wp.w);k.weapon=wp;
+  const k=buildKnight(TABARD[PV.skin]);const wp=buildWeapon(PV.w);wp.w.scale.setScalar(K_WPN);k.pivot.add(wp.w);k.weapon=wp;
   PV.scene.add(k.g);PV.k=k;
   PV.f={weapon:WEAPONS[PV.w],state:'idle',t:0,dur:0,atkType:null,atk:null,riposte:false,buffer:null,
     pose:Object.assign({},POSE.idle),walk:0,vel:new THREE.Vector3(),flash:0};

@@ -11,72 +11,104 @@ function buildWeapon(kind){
   else{b(.055,1.08,.055,wood,0,.36,0);b(.05,.2,.09,darkSteel,0,.8,-.06);b(.04,.34,.16,steel,0,.8,-.18);b(.03,.42,.05,steel,0,.8,-.28);b(.04,.08,.12,darkSteel,0,.82,.08);b(.07,.06,.07,darkSteel,0,-.17,0);}
   return {w,spin};
 }
-/* ---- knight: chibi proportions, bone hierarchy, pixel armour textures ---- */
-// g (feet at y=0, front = -z) → legL/legR (hip pivots), torso (twists at the belt) → pauldrons/tabard,
+/* ---- knight: adult proportions, armour sculpted from many small voxel plates ---- */
+// g (feet at y=0, front = -z) → legL/legR (hip pivots), torso (twists at the waist) → faulds/breastplate/pauldrons,
 // head (neck pivot, follows torso a little) → eyes; arms are 2-bone IK chains from the torso's shoulders to the hand target.
-const K_DIM={hipY:.58,torsoY:.62,shX:.44,shY:.48,neckY:1.2,armA:.4,armB:.38};
+// Every bone's plates are merged into one mesh per material, so the detail costs about the same draw calls as plain blocks.
+const K_WPN=.95; // knight's weapon scale (adult-sized longsword / axe)
+const K_DIM={hipY:.95,torsoY:.98,shX:.27,shY:.48,neckY:1.56,armA:.32,armB:.3};
 const shade=(h,k)=>{const c=hex2rgb(h).map(v=>clamp(Math.round(v*k),0,255));return(c[0]<<16)|(c[1]<<8)|c[2];};
 const KTEX={};
 const kTex=(key,fn)=>KTEX[key]||(KTEX[key]=mkTex(fn));
-// plate: dark 1px rim + bright inner bevel on top/left + corner rivets → reads as a chamfered block
-const plateFn=base=>g=>{const edge=shade(base,.58),hi=shade(base,1.22);for(let y=0;y<16;y++)for(let x=0;x<16;x++){
-  const rim=x===0||y===0||x===15||y===15,bev=(y===1||x===1)&&!rim,low=(y===14||x===14)&&!rim,riv=(x===3||x===12)&&(y===3||y===12);
-  px(g,x,y,rim?edge:riv?shade(base,.75):bev?hi:low?shade(base,.85):base,.05);}};
-const mailFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){const rim=x===0||x===15;px(g,x,y,rim?shade(base,.6):(x+(y>>1))%2?shade(base,1.18):shade(base,.82),.06);}};
-const clothFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){const rim=x===0||x===15||y===0,trim=y>=13;
-  px(g,x,y,trim?(y===13?0x7a5c22:0xc9a046):rim?shade(base,.68):(x===7||x===8)&&y>3&&y<11?shade(base,1.25):base,.07);}};
-const leatherFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){const rim=y===0||y===15,buckle=x>=6&&x<=9&&y>=4&&y<=11,hole=x>=7&&x<=8&&y>=6&&y<=9;
-  px(g,x,y,hole?shade(base,.7):buckle?0xc9a046:rim?shade(base,.6):base,.1);}};
+// plate: soft dark rim + bright bevel on top/left + a few scratches → each small block reads as a hammered steel plate
+const plateFn=base=>g=>{const edge=shade(base,.7),hi=shade(base,1.18);for(let y=0;y<16;y++)for(let x=0;x<16;x++){
+  const rim=x===0||y===0||x===15||y===15,bev=(y===1||x===1)&&!rim,low=(y===14||x===14)&&!rim,scr=srand()<.035;
+  px(g,x,y,rim?edge:bev?hi:low?shade(base,.88):scr?shade(base,1.3):base,.06);}};
+const mailFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){px(g,x,y,(x+(y>>1))%2?shade(base,1.2):shade(base,.78),.07);}};
+const clothFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){const rim=x===0||x===15,trim=y>=14;
+  px(g,x,y,trim?(y===14?0x7a5c22:0xc9a046):rim?shade(base,.72):(y%4===0)?shade(base,.9):base,.08);}};
+const leatherFn=base=>g=>{for(let y=0;y<16;y++)for(let x=0;x<16;x++){const rim=y===0||y===15,st=(x===2||x===13)&&y%3===1;
+  px(g,x,y,st?shade(base,1.35):rim?shade(base,.62):base,.12);}};
+// merge many boxes [sx,sy,sz,x,y,z] into one BufferGeometry (each box keeps its own 0..1 UVs)
+function mergeBoxes(list){
+  const pos=[],nor=[],uv=[],idx=[];let base=0;
+  for(const b of list){const bg=new THREE.BoxGeometry(b[0],b[1],b[2]);bg.translate(b[3],b[4],b[5]);
+    const P=bg.attributes.position.array;pos.push(...P);nor.push(...bg.attributes.normal.array);uv.push(...bg.attributes.uv.array);
+    for(const i of bg.index.array)idx.push(i+base);base+=P.length/3;bg.dispose();}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);
+  g.computeBoundingBox();g.computeBoundingSphere();return g;}
+// spec = {materialKey:[boxes…]} → one mesh per material under parent
+function sculpt(parent,spec,M){for(const k in spec){if(!spec[k].length)continue;const me=new THREE.Mesh(mergeBoxes(spec[k]),M[k]);me.castShadow=true;parent.add(me);}}
+// per-skin palette: straw guard wears dull iron and leather, grey knight bright plate, red swordmaster dark steel with red
+const SKIN={0x8a7a4a:{steel:0x7c7b73,dark:0x4e4a42,trim:0x7a6a48,crest:0},0x4b5a78:{steel:0x7d8690,dark:0x4a5058,trim:0xb8913a,crest:1},0x8e2222:{steel:0x5d6168,dark:0x2c2e33,trim:0xb8913a,crest:2}};
 function buildKnight(tab){
+  const sk=SKIN[tab]||SKIN[0x4b5a78];
   const g=new THREE.Group();
-  const L=t=>new THREE.MeshLambertMaterial({map:t});
-  const steel=L(kTex('steel',plateFn(0x9aa3ac))),dark=L(kTex('dark',plateFn(0x4a5058))),mail=L(kTex('mail',mailFn(0x5d636b))),
-    tabM=L(kTex('cloth'+tab,clothFn(tab))),leather=L(kTex('leather',leatherFn(0x6a4a32))),
-    plume=L(kTex('plume'+tab,fill(shade(tab,1.15),.12))),slit=new THREE.MeshLambertMaterial({color:0x121418});
-  const mats=[steel,dark,mail,tabM,leather,plume,slit];
-  const bx=(sx,sy,sz,m,x,y,z,p=g)=>{const me=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);me.position.set(x,y,z);me.castShadow=true;p.add(me);return me;};
-  // legs: short and chunky
+  const Ph=t=>new THREE.MeshPhongMaterial({map:t,specular:0x2c3036,shininess:22}),L=t=>new THREE.MeshLambertMaterial({map:t});
+  const M={steel:Ph(kTex('st'+sk.steel,plateFn(sk.steel))),dark:Ph(kTex('dk'+sk.dark,plateFn(sk.dark))),mail:L(kTex('mail',mailFn(0x5d636b))),
+    cloth:L(kTex('cloth'+tab,clothFn(tab))),leather:L(kTex('leather',leatherFn(0x5a3e2a))),trim:Ph(kTex('tr'+sk.trim,plateFn(sk.trim))),
+    plume:L(kTex('plume'+tab,fill(shade(tab,1.15),.14))),slit:new THREE.MeshLambertMaterial({color:0x0c0d10})};
+  const mats=Object.values(M);
+  // legs (pivot at hip): mail thigh, plate cuisse, knee cop with wings, greave with ridge, stepped sabaton
   const leg=x=>{const p=new THREE.Group();p.position.set(x,K_DIM.hipY,0);g.add(p);
-    bx(.25,.36,.27,mail,0,-.18,0,p);bx(.27,.14,.29,steel,0,-.3,-.02,p);bx(.29,.17,.36,dark,0,-.495,-.04,p);return p;};
-  const legL=leg(-.15),legR=leg(.15);
-  // torso (pivot at the belt)
+    sculpt(p,{mail:[[.19,.42,.21,0,-.2,0]],
+      steel:[[.2,.28,.06,0,-.17,-.095],[.18,.1,.06,0,-.44,-.115],[.17,.34,.19,0,-.64,0],[.13,.3,.04,0,-.63,-.105]],
+      dark:[[.23,.05,.05,0,-.44,-.11],[.19,.1,.27,0,-.9,-.03],[.17,.05,.07,0,-.92,-.18],[.18,.03,.2,0,-.82,0]]},M);return p;};
+  const legL=leg(-.12),legR=leg(.12);
+  // torso (pivot at the waist)
   const torso=new THREE.Group();torso.position.set(0,K_DIM.torsoY,0);g.add(torso);
-  bx(.6,.1,.42,leather,0,.02,0,torso);
-  bx(.58,.5,.4,steel,0,.31,0,torso);
-  bx(.46,.36,.02,tabM,0,.25,-.21,torso);bx(.46,.36,.02,tabM,0,.25,.21,torso);
-  bx(.38,.2,.03,tabM,0,-.1,-.215,torso);bx(.38,.2,.03,tabM,0,-.1,.215,torso);
-  bx(.3,.08,.3,mail,0,.58,0,torso);
-  for(const s of[-1,1]){bx(.3,.17,.4,steel,s*.44,.53,0,torso);bx(.26,.07,.36,dark,s*.46,.43,0,torso);}
-  // head: big chibi helmet with glowing eyes behind the visor slit
+  const side=(f)=>[-1,1].flatMap(f);
+  sculpt(torso,{
+    leather:[[.4,.07,.27,0,0,0]],
+    trim:[[.06,.06,.02,0,0,-.14],[.34,.025,.02,0,.46,-.165]],
+    mail:[[.35,.18,.24,0,.11,0],[.2,.06,.18,0,.58,0]],
+    cloth:[[.26,.38,.02,0,-.06,-.162],[.26,.34,.02,0,-.06,.16],[.24,.3,.02,0,.28,-.181]],
+    steel:[
+      [.4,.27,.27,0,.33,0],[.34,.21,.05,0,.34,-.15],[.36,.26,.03,0,.33,.145],         // breastplate core, bulge, back plate
+      [.36,.05,.04,0,.18,-.135],[.34,.05,.04,0,.13,-.13],                              // stomach lames
+      [.37,.07,.05,0,-.07,-.12],[.35,.07,.05,0,-.13,-.125],[.37,.07,.05,0,-.07,.12],   // faulds front/back
+      [.23,.06,.21,0,.53,0],                                                           // gorget
+      ...side(s=>[[.06,.15,.22,s*.2,-.08,0],[.2,.08,.26,s*.3,.5,0],[.19,.07,.24,s*.32,.44,0],[.17,.06,.22,s*.335,.385,0]])], // tassets + pauldron lames
+    dark:[[.04,.2,.02,0,.34,-.176],[.24,.03,.22,0,.565,0],...side(s=>[[.21,.025,.27,s*.3,.545,0]])]},M);
+  // head (neck pivot): rounded great helm from stepped blocks, face plate with breaths, visor slit with glowing eyes, crest
   const head=new THREE.Group();head.position.set(0,K_DIM.neckY,0);g.add(head);
-  bx(.64,.58,.6,steel,0,.29,0,head);
-  bx(.68,.07,.1,dark,0,.42,-.27,head);             // brow ridge
-  bx(.5,.11,.02,slit,0,.29,-.301,head);             // visor slit
-  bx(.06,.14,.02,slit,0,.14,-.301,head);            // breathing slot
-  bx(.66,.08,.62,dark,0,.03,0,head);                // gorget rim
-  bx(.1,.12,.38,plume,0,.64,.04,head);bx(.1,.1,.2,plume,0,.74,.16,head);bx(.1,.08,.12,plume,0,.58,.3,head);
-  const eyeM=new THREE.MeshBasicMaterial({color:tab===0x8e2222?0xff5a3c:0xffe27a});
-  const eyes=[-1,1].map(s=>bx(.1,.07,.02,eyeM,s*.12,.29,-.305,head));
-  const xMarks=[-1,1].map(s=>{const p=new THREE.Group();p.position.set(s*.12,.29,-.306);head.add(p);
-    for(const r of[.785,-.785]){const m=new THREE.Mesh(new THREE.BoxGeometry(.12,.03,.02),eyeM);m.rotation.z=r;p.add(m);}p.visible=false;return p;});
-  // arms: upper (shoulder→elbow), lower (elbow→wrist), gauntlet at the hand target
-  const seg=(len,w,m,capM)=>{const p=new THREE.Group();g.add(p);const me=new THREE.Mesh(new THREE.BoxGeometry(w,w,len),m);me.position.z=len/2;me.castShadow=true;p.add(me);
-    if(capM){const c=new THREE.Mesh(new THREE.BoxGeometry(w+.05,w+.05,.12),capM);c.castShadow=true;p.add(c);}p.userData.len=len;return p;};
-  const arm=()=>{const up=seg(K_DIM.armA,.19,steel),lo=seg(K_DIM.armB,.17,steel,dark);const hand=new THREE.Mesh(new THREE.BoxGeometry(.16,.16,.17),dark);hand.castShadow=true;g.add(hand);return{up,lo,hand,pa:0};};
-  const armR=arm(),armL=arm();
+  const crest=sk.crest===0?[]:sk.crest===1?[[.04,.08,.24,0,.38,.02],[.04,.06,.12,0,.43,.08],[.04,.05,.06,0,.36,.15]]:[[.05,.12,.2,0,.4,0],[.03,.08,.08,0,.47,.06]];
+  sculpt(head,{mail:[[.11,.07,.11,0,.02,0]],
+    steel:[[.26,.27,.29,0,.165,0],[.28,.2,.24,0,.15,0],[.22,.04,.25,0,.32,0],[.15,.03,.18,0,.35,0],[.24,.22,.03,0,.14,-.15],
+      ...(sk.crest===0?[[.32,.02,.34,0,.27,0]]:[])],                                    // straw guard: kettle-hat brim
+    dark:[[.27,.03,.03,0,.235,-.152],[.28,.04,.28,0,.03,0]],
+    slit:[[.19,.03,.02,0,.19,-.166],...[-.04,0,.04].map(x=>[.02,.05,.01,x,.08,-.166])],
+    plume:crest},M);
+  const eyeM=new THREE.MeshBasicMaterial({color:tab===0x8e2222?0xff5a3c:0xffd56a});
+  const bx=(sx,sy,sz,m,x,y,z,p)=>{const me=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);me.position.set(x,y,z);p.add(me);return me;};
+  const eyes=[-1,1].map(s=>bx(.045,.016,.01,eyeM,s*.047,.19,-.168,head));
+  const xMarks=[-1,1].map(s=>{const p=new THREE.Group();p.position.set(s*.047,.19,-.17);head.add(p);
+    for(const r of[.785,-.785]){const m=new THREE.Mesh(new THREE.BoxGeometry(.05,.012,.01),eyeM);m.rotation.z=r;p.add(m);}p.visible=false;return p;});
+  // arms: upper (mail sleeve + rerebrace), lower (couter with wing + vambrace), gauntlet with flared cuff and knuckle plate
+  const seg=(len,spec)=>{const p=new THREE.Group();g.add(p);sculpt(p,spec,M);p.userData.len=len;return p;};
+  const A=K_DIM.armA,B=K_DIM.armB;
+  const arm=s=>{const up=seg(A,{mail:[[.11,.11,A,0,0,A/2]],steel:[[.13,.13,A*.55,0,0,A*.62]]});
+    const lo=seg(B,{steel:[[.14,.14,.09,0,0,.01],[.115,.115,B*.75,0,0,B*.55]],dark:[[.03,.12,.09,s*.08,0,.01]]});
+    const hand=new THREE.Group();g.add(hand);sculpt(hand,{dark:[[.1,.11,.12,0,0,.02],[.135,.135,.045,0,0,-.05]],steel:[[.105,.035,.09,0,.055,.025]]},M);
+    return{up,lo,hand,pa:0};};
+  const armR=arm(1),armL=arm(-1);
   const pivot=new THREE.Group();pivot.rotation.order='YXZ';g.add(pivot);
-  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,weapon:null,twist:0,dodge:0,nod:0,blinkAt:rand(2,4),blinkT:0,reachErr:0};
+  // collision volumes (local to head / torso) used by the arm IK and by the clipping tests
+  const colBoxes=[{obj:head,min:new THREE.Vector3(-.14,-.01,-.165),max:new THREE.Vector3(.14,.34,.15)},
+    {obj:torso,min:new THREE.Vector3(-.2,-.17,-.15),max:new THREE.Vector3(.2,.47,.15)}];
+  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,colBoxes,weapon:null,twist:0,dodge:0,nod:0,blinkAt:rand(2,4),blinkT:0,reachErr:0};
 }
 const Z=new THREE.Vector3(0,0,1),tmpV=new THREE.Vector3(),tmpV2=new THREE.Vector3();
 const _S=new THREE.Vector3(),_D=new THREE.Vector3(),_N=new THREE.Vector3(),_E=new THREE.Vector3(),_W=new THREE.Vector3(),_hR=new THREE.Vector3(),_hL=new THREE.Vector3(),_eul=new THREE.Euler(0,0,0,'YXZ'),Y_UP=new THREE.Vector3(0,1,0);
 // shoulders sit rolled forward: both weapons are held two-handed in front of the chest
-const SH_FWD=.12;
+const SH_FWD=.05;
 function shoulderAt(side,yaw,out){const x=side*K_DIM.shX,z=-SH_FWD,c=Math.cos(yaw),s=Math.sin(yaw);return out.set(x*c+z*s,K_DIM.torsoY+K_DIM.shY,-x*s+z*c);}
 function overReach(side,yaw,h){const d=shoulderAt(side,yaw,_S).distanceTo(h)-(K_DIM.armA+K_DIM.armB)*.95;return d>0?d:0;}
 function placeSeg(p,a,b,len){_D.copy(b).sub(a);const l=Math.max(.01,_D.length());p.position.copy(a);p.quaternion.setFromUnitVectors(Z,_D.divideScalar(l));p.scale.set(1,1,l/len);}
-// --- body avoidance: arms are kept outside the big chibi helmet and the chest/belt block.
+// --- body avoidance: arms are kept outside the helmet and the chest/faulds block.
 // Both are boxes tested in their own local space (head follows a third of the torso twist).
-const HEAD_BOX={hx:.33,y0:-.02,y1:.6,hz:.31},TORSO_BOX={hx:.3,y0:-.06,y1:.6,hz:.21};
+const HEAD_BOX={hx:.14,y0:-.01,y1:.34,hz:.16},TORSO_BOX={hx:.2,y0:-.17,y1:.47,hz:.15};
 const _hq=new THREE.Quaternion(),_hqi=new THREE.Quaternion(),_tqi=new THREE.Quaternion(),_hp=new THREE.Vector3(),_C=new THREE.Vector3(),_X=new THREE.Vector3(),_T=new THREE.Vector3(),_hpos=new THREE.Vector3(),_tpos=new THREE.Vector3();
 function boxPen(v,r,pos,qi,B){_hp.copy(v).sub(pos).applyQuaternion(qi);const m=Math.min(B.hx+r-Math.abs(_hp.x),_hp.y-B.y0+r,B.y1+r-_hp.y,B.hz+r-Math.abs(_hp.z));return m>0?m:0;}
 const headPen=(v,r)=>boxPen(v,r,_hpos,_hqi,HEAD_BOX);
@@ -119,7 +151,7 @@ function updateKnight(k,f,pz,dt){
   const pv=k.pivot;pv.rotation.set(pz.bpitch,pz.byaw,pz.roll);k.weapon.spin.rotation.y=pz.spin;
   _hR.set(pz.bx,pz.by,pz.bz);pv.position.copy(_hR);
   // both weapons are held in two hands: weapon hand at the pivot, off hand further down the grip/haft
-  _hL.set(0,-.18*1.15,0).applyEuler(_eul.set(pz.bpitch,pz.byaw,pz.roll,'YXZ')).add(_hR);
+  _hL.set(0,-.18*K_WPN,0).applyEuler(_eul.set(pz.bpitch,pz.byaw,pz.roll,'YXZ')).add(_hR);
   // torso twist: pick the yaw that lets both hands reach their targets clear of the body, with a mild pull back to neutral
   // (collision is part of the cost: twisting the chest out of the way is how short chibi arms sweep across it)
   for(const o of _twOrd){const y=o.a;o.b=overReach(1,y,_hR)**2*30+overReach(-1,y,_hL)**2*20+y*y*.04+Math.abs(y-k.twist)*.01;}
@@ -155,8 +187,8 @@ const POSE={
   stun:  P(.3,-.7,-.45, .3,-.1,-.6,0,         .4,.8,-.3),
 };
 // two-handed grips: bot-space hands sit in front of the chest so both arms reach without crossing the body
-const TWO_B={idle:[.12,1.0,-.55],slashW:[.42,1.14,-.38],slashE:[-.3,1.05,-.55],stabW:[.28,.95,-.45],stabE:[.05,1.12,-.8],
-  overW:[.12,1.45,-.6],overE:[.05,.95,-.62],parry:[.05,1.3,-.55],recoil:[.3,1.35,-.4],stun:[.15,.85,-.5]};
+const TWO_B={idle:[0,1.23,-.43],slashW:[.32,1.42,-.27],slashE:[-.22,1.25,-.35],stabW:[.12,1.18,-.4],stabE:[.04,1.32,-.62],
+  overW:[.1,1.75,-.22],overE:[.04,1.15,-.51],parry:[.04,1.5,-.38],recoil:[.26,1.6,-.2],stun:[.05,1.15,-.4]};
 for(const k in TWO_B)[POSE[k].bx,POSE[k].by,POSE[k].bz]=TWO_B[k];
 const POSE_KEYS=['x','y','z','yaw','pitch','roll','spin','bx','by','bz','byaw','bpitch'];
 const W_OF={slash:'slashW',stab:'stabW',over:'overW'},E_OF={slash:'slashE',stab:'stabE',over:'overE'};
@@ -166,7 +198,7 @@ const W_OF={slash:'slashW',stab:'stabW',over:'overW'},E_OF={slash:'slashE',stab:
 const _h0={bx:0,by:0,bz:0};
 function bodyClear(th,y){const s=Math.abs(Math.sin(th))+1e-3,c=Math.abs(Math.cos(th))+1e-3;let r=0;
   const box=(hx,hz)=>{r=Math.max(r,Math.min(hx/s,hz/c));};
-  if(y>1.08)box(.33,.31);if(y>.45&&y<1.3)box(.34,.22);if(y<=.6)box(.3,.2);return r+.1;}
+  if(y>1.48)box(.15,.17);if(y>.75&&y<1.55)box(.21,.16);if(y<=.98)box(.17,.14);return r+.08;}
 function arcHand(cur,a,b,t){
   const ta=Math.atan2(a.bx,-a.bz),tb=Math.atan2(b.bx,-b.bz),ra=Math.hypot(a.bx,a.bz),rb=Math.hypot(b.bx,b.bz);
   const th=lerp(ta,tb,t),y=lerp(a.by,b.by,t),r=Math.max(lerp(ra,rb,t),bodyClear(th,y));
@@ -194,7 +226,7 @@ let knight=null;
 function setupKnight(){
   if(knight)scene.remove(knight.g);
   knight=buildKnight(TABARD[CFG.diff]);
-  const wp=buildWeapon(bot.weapon.id);wp.w.scale.setScalar(1.15);knight.pivot.add(wp.w);knight.weapon=wp;
+  const wp=buildWeapon(bot.weapon.id);wp.w.scale.setScalar(K_WPN);knight.pivot.add(wp.w);knight.weapon=wp;
   scene.add(knight.g);
 }
 let vm=null;const vmRoot=new THREE.Group();vmScene.add(vmRoot);
