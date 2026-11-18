@@ -6,7 +6,7 @@
    using the real weapon timings, and posed with the same poseFor/updateKnight as in a match. */
 const PV={open:false,ready:false,w:'sword',skin:'med',speed:1,auto:true,yaw:.55,pitch:.12,dist:4.9,swayT:0,
   renderer:null,scene:null,cam:null,k:null,f:null,last:0,raf:0,drag:null,lastWheel:0,idleT:0};
-const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng'};
+const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng',dead:'Gục ngã'};
 const PV_TARGET=new THREE.Vector3(0,1.0,0);
 
 function pvInit(){
@@ -45,14 +45,18 @@ function pvBuild(){
 
 /* ---- tiny combat state machine (no opponent, no stamina) ---- */
 function pvSet(s,dur){const f=PV.f;f.state=s;f.t=0;f.dur=dur||0;pvLabel();}
-function pvAttack(type){const f=PV.f;initAudio();PV.idleT=0;
+function pvAttack(type){const f=PV.f;initAudio();PV.idleT=0;if(f.state==='dead')return;
   if(f.state!=='idle'&&f.state!=='parry'){f.buffer=type;return;}
   const a=f.weapon[type];f.atkType=type;f.atk=a;pvSet('windup',a.wind/S.atkSpeed);SFX.tell(type,true);}
 function pvParry(on){const f=PV.f;initAudio();PV.idleT=0;
   if(on&&(f.state==='idle'||f.state==='recovery'))pvSet('parry');
   else if(!on&&f.state==='parry')pvSet('idle');}
 function pvStun(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;SFX.hit();pvSet('stun',.6);}
+function pvHit(){initAudio();PV.idleT=0;PV.f.flash=1;SFX.hit();}
+// knight goes down, lies there a moment, then gets back up (viewer only)
+function pvDie(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;PV.f.deadT=0;SFX.boom();pvSet('dead',2.6);}
 function pvStep(dt){const f=PV.f;f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
+  if(f.state==='dead'){f.deadT+=dt;if(f.t>=f.dur){f.deadT=0;pvSet('idle');}return;}
   if(f.state==='windup'&&f.t>=f.dur){pvSet('release',f.atk.rel/S.atkSpeed);SFX.whoosh(f.atkType==='over'||f.weapon.id==='axe',false);}
   else if(f.state==='release'&&f.t>=f.dur)pvSet('recovery',f.atk.rec/S.atkSpeed);
   else if((f.state==='recovery'||f.state==='stun')&&f.t>=f.dur){pvSet('idle');if(f.buffer){const b=f.buffer;f.buffer=null;pvAttack(b);}}
@@ -103,7 +107,7 @@ function pvBindInput(cv){
     if(a==='parry'){b.addEventListener('pointerdown',e=>{e.preventDefault();pvParry(true);});
       for(const ev of['pointerup','pointerleave','pointercancel'])b.addEventListener(ev,()=>pvParry(false));
       b.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat)pvParry(true);});b.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')pvParry(false);});}
-    else if(a==='stun')b.onclick=pvStun;else b.onclick=()=>pvAttack(a);});
+    else if(a==='stun')b.onclick=pvStun;else if(a==='hit')b.onclick=pvHit;else if(a==='die')b.onclick=pvDie;else b.onclick=()=>pvAttack(a);});
   // option groups (local to the viewer, they don't change match settings)
   document.querySelectorAll('[data-pv-opt]').forEach(seg=>{const key=seg.dataset.pvOpt;
     const sync=()=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(PV[key])===b.dataset.v)));
