@@ -6,7 +6,7 @@ document.querySelectorAll('.seg[data-key]').forEach(seg=>{const key=seg.dataset.
 $('optInd').checked=CFG.indicator;$('optInd').onchange=e=>{CFG.indicator=e.target.checked;save();};
 if(matchMedia('(pointer: coarse)').matches&&!matchMedia('(any-pointer: fine)').matches)$('touchWarn').hidden=false;
 const TUNE=[
-  ['parryWindow','Khoảng đỡ chuẩn',80,350,10,v=>v+' ms'],['counterWindow','Khoảng phản đòn khớp loại',120,400,10,v=>v+' ms'],['atkSpeed','Tốc độ đòn',.6,1.6,.05,v=>v.toFixed(2)+'×'],
+  ['parryWindow','Khoảng đỡ chuẩn',80,350,10,v=>v+' ms'],['counterWindow','Khoảng phản đòn khớp loại',120,400,10,v=>v+' ms'],['dodgeCost','Thể lực mỗi lần lách',0,40,1,v=>v+''],['dodgeCD','Hồi chiêu lách',.2,2,.05,v=>v.toFixed(2)+' giây'],['atkSpeed','Tốc độ đòn',.6,1.6,.05,v=>v.toFixed(2)+'×'],
   ['dmgMul','Sát thương',.5,2,.05,v=>v.toFixed(2)+'×'],['stamRegen','Hồi thể lực',8,45,1,v=>v+' /giây'],
   ['botReact','Thời gian phản xạ của bot',.5,2,.05,v=>v.toFixed(2)+'×'],['hitstop','Khựng hình khi trúng',0,150,5,v=>v+' ms'],
   ['sens','Độ nhạy chuột',.3,2.5,.05,v=>v.toFixed(2)+'×'],['volume','Âm lượng',0,1,.05,v=>Math.round(v*100)+'%']];

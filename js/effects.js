@@ -19,6 +19,7 @@ const SFX={
   bell(){tone(660,1.3,'sine',.14);tone(990,.8,'sine',.05);},
   tick(){tone(520,.08,'square',.04);},
   feint(){nz(.08,'bandpass',800,400,2,.15);},
+  dodge(far){const v=far?.6:1;nz(.16,'bandpass',600,1500,1.4,.2*v);nz(.07,'lowpass',400,120,1,.25*v);},
   // distinct wind-up cue per attack type so it can be read by ear early
   tell(type,loud){const v=loud?1:.45;
     if(type==='slash'){nz(.16,'bandpass',900,2600,3,.22*v);}

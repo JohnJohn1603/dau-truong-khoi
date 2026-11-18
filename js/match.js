@@ -29,11 +29,11 @@ function endMatch(){
   $('endSub').textContent=win?`Bạn hạ ${BOT_NAMES[CFG.diff]} với tỉ số ${score.p} – ${score.b}.`:`${BOT_NAMES[CFG.diff]} thắng ${score.b} – ${score.p}. Thử đỡ sớm hơn một chút, hoặc nhử đòn rồi đánh khi bot đang giữ đỡ.`;
   const acc=stats.swings?Math.round(stats.hits/stats.swings*100):0;
   const rows=[[stats.hits+'/'+stats.swings,'Đòn trúng / vung'],[acc+'%','Tỉ lệ trúng'],[Math.round(stats.dmg),'Sát thương gây ra'],[stats.counters,'Phản đòn khớp loại'],[stats.perfect,'Đỡ chuẩn'],[stats.blocks,'Đỡ thường'],[stats.broken,'Bị vỡ thế'],[stats.feintBaits,'Nhử trúng'],[stats.taken,'Lần dính đòn'],[stats.botCounters+' / '+stats.botPerfect,'Bot phản đòn / đỡ chuẩn']];
-  rows.splice(8,0,[stats.morphs+' / '+stats.morphBaits,'Đổi đòn / lừa trúng']);
+  rows.splice(8,0,[stats.morphs+' / '+stats.morphBaits,'Đổi đòn / lừa trúng'],[stats.dodges+' / '+stats.dodgeAvoids,'Lách / lách thoát']);
   $('endStats').innerHTML=rows.map(r=>`<div><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
   const entry={id:newId(),kind:'match',tester:testerName(),at:Date.now(),diff:CFG.diff,pw:player.weapon.id,bw:bot.weapon.id,sp:score.p,sb:score.b,win,
     durS:Math.round(now-matchStart),fps:fpsTime>0?Math.round(fpsFrames/fpsTime):null,again:null,note:''};
-  for(const k of['swings','hits','counters','perfect','blocks','broken','feintBaits','morphs','morphBaits','taken','botCounters','botPerfect','botMorphs'])entry[k]=stats[k];
+  for(const k of['swings','hits','counters','perfect','blocks','broken','feintBaits','morphs','morphBaits','dodges','dodgeAvoids','taken','botCounters','botPerfect','botMorphs','botDodges','botDodgeAvoids'])entry[k]=stats[k];
   showEnd(entry,true);$('againBtn').textContent='Đấu lại';
   persist(entry);
 }

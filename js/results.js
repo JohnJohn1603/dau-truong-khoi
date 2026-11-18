@@ -63,10 +63,10 @@ function renderResults(){
     `<div>${verdict(fpsMin!==null&&fpsMin>=55,fpsL.length)}<b>${fpsAvg===null?'–':fpsAvg+' fps'}</b><span>trung bình, thấp nhất ${fpsMin===null?'–':fpsMin+' fps'}. Cần khoảng 60.</span></div>`
   ].join('');
   const rec=(arr,d)=>{const m=arr.filter(s=>s.kind==='match'&&s.diff===d);return m.length?`${m.filter(s=>s.win).length}/${m.length}`:'–';};
-  const head='<tr><th>Tester</th><th>Trận</th><th>Thắng Dễ</th><th>Thắng Vừa</th><th>Thắng Khó</th><th>Phản đòn</th><th>Đỡ chuẩn</th><th>Đổi đòn</th><th>Muốn chơi tiếp</th><th>Góp ý gần nhất</th></tr>';
+  const head='<tr><th>Tester</th><th>Trận</th><th>Thắng Dễ</th><th>Thắng Vừa</th><th>Thắng Khó</th><th>Phản đòn</th><th>Đỡ chuẩn</th><th>Đổi đòn</th><th>Lách (thoát)</th><th>Muốn chơi tiếp</th><th>Góp ý gần nhất</th></tr>';
   $('resTable').innerHTML=head+(names.length?names.map(n=>{const a=by[n],m=a.filter(s=>s.kind==='match');const sum=k=>m.reduce((x,s)=>x+(Number(s[k])||0),0);
     const lastA=m.filter(s=>typeof s.again==='boolean').pop();const note=a.filter(s=>s.note).pop();
-    return `<tr><td>${esc(n)}</td><td>${m.length}</td><td>${rec(a,'easy')}</td><td>${rec(a,'med')}</td><td>${rec(a,'hard')}</td><td>${sum('counters')}</td><td>${sum('perfect')}</td><td>${sum('morphs')}</td><td>${lastA?(lastA.again?'Có':'Không'):'–'}</td><td class="note">${esc(note?note.note:'')}</td></tr>`;}).join(''):'<tr><td colspan="10">Chưa có trận nào.</td></tr>');
+    return `<tr><td>${esc(n)}</td><td>${m.length}</td><td>${rec(a,'easy')}</td><td>${rec(a,'med')}</td><td>${rec(a,'hard')}</td><td>${sum('counters')}</td><td>${sum('perfect')}</td><td>${sum('morphs')}</td><td>${sum('dodges')} (${sum('dodgeAvoids')})</td><td>${lastA?(lastA.again?'Có':'Không'):'–'}</td><td class="note">${esc(note?note.note:'')}</td></tr>`;}).join(''):'<tr><td colspan="11">Chưa có trận nào.</td></tr>');
   const th='<tr><th>Tester</th><th>Buổi tập</th><th>Phản đòn đúng</th><th>Tỉ lệ</th><th>Chém</th><th>Đập</th><th>Đâm</th><th>Bấm trước (TB)</th></tr>';
   const tn=names.filter(n=>by[n].some(s=>s.kind==='train'));
   $('resTrain').innerHTML=th+(tn.length?tn.map(n=>{const t=by[n].filter(s=>s.kind==='train');const at=t.reduce((x,s)=>x+(Number(s.attempts)||0),0),ok=t.reduce((x,s)=>x+(Number(s.ok)||0),0);

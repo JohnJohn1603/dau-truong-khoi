@@ -3,7 +3,7 @@
 /* ---------------- time / phase ---------------- */
 let now=0,phase='attract',phaseT=0,paused=false,hitstop=0,shake=0,score={p:0,b:0},round=1,mode='match',matchStart=0,fpsFrames=0,fpsTime=0;
 let stats=null;
-const resetStats=()=>{stats={swings:0,hits:0,dmg:0,perfect:0,counters:0,blocks:0,broken:0,taken:0,feintBaits:0,morphs:0,morphBaits:0,botPerfect:0,botCounters:0,botMorphs:0};};
+const resetStats=()=>{stats={swings:0,hits:0,dmg:0,perfect:0,counters:0,blocks:0,broken:0,taken:0,feintBaits:0,morphs:0,morphBaits:0,botPerfect:0,botCounters:0,botMorphs:0,dodges:0,dodgeAvoids:0,botDodges:0,botDodgeAvoids:0};};
 const other=f=>f===player?bot:player;
 
 function setState(f,s,dur){f.state=s;f.t=0;f.dur=dur||0;}
@@ -13,7 +13,7 @@ function relAngle(att,pos){const dx=pos.x-att.pos.x,dz=pos.z-att.pos.z;const s=M
 function startAttack(f,type){
   if(phase!=='fight'||f.state==='dead')return false;
   if(f.state==='windup'){if(type!==f.atkType&&!f.morphed)return morph(f,type);return false;}
-  if(f.state!=='idle'&&f.state!=='parry'){if(['recovery','recoil','feint','release','stun'].includes(f.state))f.buffer={type,t:now};return false;}
+  if(f.state!=='idle'&&f.state!=='parry'){if(['recovery','recoil','feint','release','stun','dodge'].includes(f.state))f.buffer={type,t:now};return false;}
   const a=f.weapon[type];
   if(f.st<1){if(!f.isBot)popup('Hết thể lực','warn');return false;}
   if(f.state==='parry')f.lastParryRelease=now;
@@ -41,30 +41,58 @@ function feint(f){
   return true;
 }
 function parryPress(f){
-  if(f.state==='dead'||f.state==='stun'||f.state==='release'||(f.state==='recoil'&&f.t<.2)||f.state==='parry')return false;
+  if(f.state==='dead'||f.state==='stun'||f.state==='release'||f.state==='dodge'||(f.state==='recoil'&&f.t<.2)||f.state==='parry')return false;
   if(phase!=='fight'&&phase!=='countdown')return false;
   if(f.state==='windup'){if(!feint(f))return false;}
   f.perfectOK=(now-f.lastParryRelease)>.35;
   f.buffer=null;setState(f,'parry',0);f.parryStart=now;return true;
 }
 function parryRelease(f){if(f.state==='parry'){setState(f,'idle');f.lastParryRelease=now;}}
+// Lách: a short dash in a direction relative to facing (side, fwd in -1..1; none = backwards).
+// Costs stamina, has a cooldown, gives no invulnerability: it only works by leaving the swing's reach or arc.
+const DODGE_T=.24;
+// Turn cap once a swing is committed (late wind-up and release), in rad/s: a sidestep at the last moment can beat tracking.
+const TURN_CAP=1.2;
+const committed=f=>f.state==='release'||(f.state==='windup'&&f.t>f.dur*.6);
+function dodge(f,side,fwd){
+  if(phase!=='fight'||f.state==='dead')return false;
+  const ok=f.state==='idle'||f.state==='parry'||f.state==='feint'||(f.state==='recovery'&&f.t>f.dur*.6);
+  if(!ok)return false;
+  if(now<(f.dodgeReady||0)){if(!f.isBot)popup('Chưa lách được','warn');return false;}
+  if(f.st<S.dodgeCost){if(!f.isBot)popup('Hết thể lực','warn');return false;}
+  if(!side&&!fwd)fwd=-1;const l=Math.hypot(side,fwd);side/=l;fwd/=l;
+  if(f.state==='parry')parryRelease(f);
+  spend(f,S.dodgeCost);f.buffer=null;
+  const s=Math.sin(f.yaw),c=Math.cos(f.yaw),sp=fwd>.5?7.5:(Math.abs(side)>.5?9.5:8.5);
+  f.vel.set((-s*fwd+c*side)*sp,0,(-c*fwd-s*side)*sp);
+  f.dodgeSide=side;f.dodgeFwd=fwd;f.lastDodge=now;f.dodgeReady=now+S.dodgeCD;
+  setState(f,'dodge',DODGE_T);SFX.dodge(f.isBot);
+  if(!f.isBot)stats.dodges++;else stats.botDodges++;
+  return true;
+}
 
 function updateFighter(f,dt){
   const o=other(f);f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
   switch(f.state){
     case'windup':if(f.t>=f.dur){setState(f,'release',f.atk.rel/S.atkSpeed);SFX.whoosh(f.atkType==='over'||f.weapon.id==='axe',f.isBot);}break;
-    case'release':{const p0=clamp((f.t-dt)/f.dur,0,1),p1=clamp(f.t/f.dur,0,1);if(!f.hitDone&&o.state!=='dead')hitCheck(f,o,p0,p1);if(f.state==='release'&&f.t>=f.dur)setState(f,'recovery',f.atk.rec/S.atkSpeed);break;}
-    case'recovery':case'feint':case'recoil':case'stun':if(f.t>=f.dur)setState(f,'idle');break;
+    case'release':{const p0=clamp((f.t-dt)/f.dur,0,1),p1=clamp(f.t/f.dur,0,1);if(!f.hitDone&&o.state!=='dead')hitCheck(f,o,p0,p1);if(f.state==='release'&&f.t>=f.dur){if(!f.hitDone&&(o.lastDodge||-9)>=f.atkStart-.05&&o.state!=='dead')dodgedOut(f,o);setState(f,'recovery',f.atk.rec/S.atkSpeed);}break;}
+    case'recovery':case'feint':case'recoil':case'stun':case'dodge':if(f.t>=f.dur)setState(f,'idle');break;
     case'parry':if(now-f.parryStart>S.parryWindow/1000){f.st=Math.max(0,f.st-5*dt);}break;
     case'dead':f.deadT+=dt;break;
   }
   if(f.state==='idle'&&f.buffer){if(now-f.buffer.t<.3){const b=f.buffer;f.buffer=null;startAttack(f,b.type);}else f.buffer=null;}
   if(f.state!=='parry'&&f.state!=='dead'&&now-f.lastSpend>.8)f.st=Math.min(100,f.st+S.stamRegen*dt);
 }
+// an attack ran out without touching anyone who dodged during it
+function dodgedOut(att,def){
+  if(!def.isBot){stats.dodgeAvoids++;if(mode!=='training')popup('Lách thoát','good');}else{stats.botDodgeAvoids++;popup('Bot lách thoát','info');}
+  if(mode==='training'&&att===bot)trainResult(null,'Lách thoát','Lách tránh được đòn. Bài này tập phản đòn nên không tính.','info',att.atkType,null);
+}
+// a thrust or chop must meet the body itself, not the whole collision circle (tolerance ×0.7)
 function hitCheck(att,def,p0,p1){
   const a=att.atk,{ang,dist,z}=relAngle(att,def.pos);
   if(dist-def.radius>a.range||z<-.2)return;
-  const tol=Math.atan2(def.radius,Math.max(dist,.3));const half=a.arc*Math.PI/360;let hit=false;
+  const tol=Math.atan2(def.radius*(att.atkType==='slash'?1:.7),Math.max(dist,.3));const half=a.arc*Math.PI/360;let hit=false;
   if(att.atkType==='slash'){const b0=half-2*half*p0,b1=half-2*half*p1;hit=ang<=b0+tol&&ang>=b1-tol;}
   else if(att.atkType==='stab'){hit=p1>=.3&&Math.abs(ang)<=half+tol;}
   else{hit=p1>=.55&&Math.abs(ang)<=half+tol;}

@@ -11,7 +11,7 @@ const trainBot={next:0,
       if(startAttack(f,t)){this.pending={type:t};this.next=now+f.dur+f.atk.rel+f.atk.rec+rand(1.1,1.7);}
     }
     // an attack that ended without reaching the player
-    if(this.pending&&f.state==='recovery'&&!f.hitDone){trainResult(null,'Đòn hụt','Đứng gần bot hơn (khoảng 2 bước).','info',this.pending.type,null);}
+    if(this.pending&&f.state==='recovery'&&!f.hitDone&&!((player.lastDodge||-9)>=f.atkStart-.05)){trainResult(null,'Đòn hụt','Đứng gần bot hơn (khoảng 2 bước).','info',this.pending.type,null);}
     if(f.state==='recovery'||f.state==='recoil')this.pending=null;
     const fwd=clamp((dist-1.9)*1.6,-1,1);const s=Math.sin(f.yaw),co=Math.cos(f.yaw);return{mx:-s*fwd,mz:-co*fwd};}
 };

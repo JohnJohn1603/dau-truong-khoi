@@ -2,9 +2,9 @@
 'use strict';
 /* ---------------- bot AI ---------------- */
 const ai={
-  reset(){this.nextAttackAt=now+rand(.8,1.4);this.threat=null;this.parryAt=null;this.counterAt=null;this.counterType=null;this.releaseAt=null;this.feintAt=null;this.ripAt=null;this.strafe=Math.random()<.5?1:-1;this.strafeT=now+rand(.8,2);this.forceType=null;this.morphTo=null;this.countering=false;this.morphSeen=null;},
+  reset(){this.nextAttackAt=now+rand(.8,1.4);this.threat=null;this.parryAt=null;this.counterAt=null;this.counterType=null;this.releaseAt=null;this.feintAt=null;this.ripAt=null;this.strafe=Math.random()<.5?1:-1;this.strafeT=now+rand(.8,2);this.forceType=null;this.morphTo=null;this.countering=false;this.morphSeen=null;this.dodgeAt=null;this.dodgeDir=null;this.gapT=0;},
   onEnemyMorph(info){const c=this.cfg();if(c.parryP<=0||bot.state==='dead')return;
-    this.parryAt=null;this.counterAt=null;
+    this.parryAt=null;this.counterAt=null;this.dodgeAt=null;
     const impact=info.windEnd+info.rel*IMPACT_P[info.type];
     if(bot.state==='parry'){this.releaseAt=impact+.25;this.threat=null;return;}
     if(bot.state==='windup'&&this.countering&&bot.atkType!==info.type){this.threat=null;if(Math.random()<c.morphCounter)this.morphTo={type:info.type,at:now+rr(c.react)*S.botReact};return;}
@@ -14,6 +14,7 @@ const ai={
     this.threat={perceiveAt:now+rr(c.react)*S.botReact,impact:info.windEnd+info.rel*IMPACT_P[info.type],type:info.type,decided:false};},
   onEnemyFeint(){const c=this.cfg();if(!this.threat)return;
     if(this.counterAt!==null&&Math.random()<c.readFeint)this.counterAt=null;
+    if(this.dodgeAt!==null&&Math.random()<c.readFeint)this.dodgeAt=null;
     if(bot.state!=='parry'){if(Math.random()<c.readFeint)this.parryAt=null;}
     else if(Math.random()<c.readFeint){this.releaseAt=now+.12;}
     this.threat=null;},
@@ -24,14 +25,18 @@ const ai={
     if(f.state==='dead')return{mx:0,mz:0};
     // face player
     const dx=pl.pos.x-f.pos.x,dz=pl.pos.z-f.pos.z,dist=Math.hypot(dx,dz);
-    const want=Math.atan2(-dx,-dz);const turn=c.turn*(f.state==='release'?.6:1)*(f.state==='stun'?.3:1);
+    const want=Math.atan2(-dx,-dz);const turn=Math.min(c.turn*({windup:.6,release:.35,stun:.3}[f.state]??1),committed(f)?TURN_CAP:99);
     f.yaw+=clamp(angWrap(want-f.yaw),-turn*dt,turn*dt);
     if(phase!=='fight')return{mx:0,mz:0};
     // defence
     const th=this.threat;
     if(th&&!th.decided&&now>=th.perceiveAt){th.decided=true;
       if(pl.state==='windup'||pl.state==='release'){
-        if(Math.random()<c.parryP){
+        // lách: back out of a wide slash, sidestep a narrow stab or overhead; more likely when low on stamina
+        const wantDodge=c.dodgeP>0&&f.state!=='windup'&&f.st>=S.dodgeCost&&Math.random()<(f.st<35?c.dodgeP*2:c.dodgeP);
+        if(wantDodge){this.dodgeAt=Math.max(now,th.impact-rand(.22,.32));
+          this.dodgeDir=th.type==='slash'?{side:rand(-.4,.4),fwd:-1}:{side:Math.random()<.5?-1:1,fwd:-.2};}
+        else if(Math.random()<c.parryP){
           let ok=true;
           if(f.state==='windup'){const myImpact=now+(f.dur-f.t)+f.atk.rel/S.atkSpeed*IMPACT_P[f.atkType];ok=myImpact>th.impact-.05&&Math.random()<c.cancelP;}
           if(ok&&f.state!=='windup'&&Math.random()<c.counterP){this.counterAt=Math.max(now,th.impact-rr(c.cOffset)*S.counterWindow/250);this.counterType=th.type;}
@@ -39,6 +44,7 @@ const ai={
         }
       }
     }
+    if(this.dodgeAt!==null&&now>=this.dodgeAt){this.dodgeAt=null;const d=this.dodgeDir;dodge(f,d.side,d.fwd);this.threat=null;}
     if(this.counterAt!==null&&now>=this.counterAt){this.counterAt=null;if(f.state==='parry')parryRelease(f);if(startAttack(f,this.counterType))this.countering=true;this.threat=null;}
     if(this.parryAt!==null&&now>=this.parryAt){this.parryAt=null;if(f.state!=='parry')parryPress(f);}
     if(f.state==='parry'&&this.releaseAt!==null&&now>=this.releaseAt){this.releaseAt=null;parryRelease(f);this.threat=null;}
@@ -54,7 +60,9 @@ const ai={
     }
     if(this.morphTo&&now>=this.morphTo.at){const m=this.morphTo;this.morphTo=null;if(f.state==='windup')morph(f,m.type);}
     // offence
-    const pendingDef=this.parryAt!==null||this.counterAt!==null||(th&&!th.decided);
+    const pendingDef=this.parryAt!==null||this.counterAt!==null||this.dodgeAt!==null||(th&&!th.decided);
+    // hard bot closes distance with a forward dash
+    if(c.gapP>0&&f.state==='idle'&&!pendingDef&&dist>3.4&&dist<6&&f.st>50&&now>this.gapT){this.gapT=now+1.5;if(Math.random()<c.gapP)dodge(f,0,1);}
     const range=f.weapon.slash.range;
     if(f.state==='idle'&&!pendingDef&&now>=this.nextAttackAt&&dist<=range+.3&&f.st>18){
       let type=this.forceType||pick(c.mix);this.forceType=null;
