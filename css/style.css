@@ -105,4 +105,25 @@ table.res td.note{white-space:normal;min-width:220px;color:var(--parch-dim)}
 #trainHud .big{font-family:var(--display);font-size:24px;line-height:1.05}
 #trainHud .big.good{color:#f3d277}#trainHud .big.bad{color:#ff7a66}#trainHud .big.info{color:var(--steel)}
 #trainHud .sub{color:var(--parch-dim)}
+/* model viewer (Xưởng giáp) */
+.viewer{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:20px;align-items:start}
+.stage{position:relative;aspect-ratio:4/3;max-height:62vh;width:100%;background:#15181e;border:1px solid var(--line);overflow:hidden}
+#vCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer;touch-action:none;outline:none}
+#vCanvas.dragging{cursor:grabbing}
+#vCanvas:focus-visible{outline:2px solid var(--ember);outline-offset:-2px}
+.vtag{position:absolute;left:14px;top:12px;display:grid;gap:2px;pointer-events:none}
+.vtag b{font-family:var(--display);font-size:28px;font-weight:500;line-height:1;text-shadow:0 2px 0 rgba(0,0,0,.6)}
+.vtag span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--parch-dim)}
+.vstate{position:absolute;right:14px;top:14px;min-width:150px;text-align:right;pointer-events:none;font-size:12px;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+#vState{color:var(--steel)}
+#vState[data-s="windup"]{color:var(--ember)}#vState[data-s="release"]{color:#ff7a66}#vState[data-s="parry"]{color:var(--gold)}#vState[data-s="stun"]{color:#ff7a66}
+.vstate .pb{height:3px;background:rgba(0,0,0,.5);margin-top:5px}
+.vstate .pb>i{display:block;height:100%;background:currentColor;color:var(--ember);transform-origin:right;transform:scaleX(0)}
+.vhelp{position:absolute;left:0;right:0;bottom:0;margin:0;padding:8px 12px;list-style:none;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--parch);background:linear-gradient(0deg,rgba(15,17,21,.9),rgba(15,17,21,.4) 70%,transparent);pointer-events:none}
+.vside{display:grid;gap:16px}
+.vacts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.vacts .ghost{padding:9px 10px;text-align:center}
+.vacts .ghost:active{background:var(--parch);color:var(--ink)}
+.vside .seg button{padding:8px 12px}
+@media (max-width:720px){.viewer{grid-template-columns:1fr}.stage{aspect-ratio:1/1}}
 @media (prefers-reduced-motion:reduce){.pop,.dmg{animation-duration:.01s}.bar>i{transition:none}}
