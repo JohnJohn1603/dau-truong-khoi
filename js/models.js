@@ -17,6 +17,8 @@ function buildWeapon(kind){
 // Every bone's plates are merged into one mesh per material, so the detail costs about the same draw calls as plain blocks.
 const K_WPN=.95; // knight's weapon scale (adult-sized longsword / axe)
 const K_DIM={hipY:.95,torsoY:.98,shX:.27,shY:.48,neckY:1.56,armA:.32,armB:.3};
+// the player is the same knight: eyes sit at the helmet's visor slit
+const EYE_H=K_DIM.neckY+.19,EYE_Z=-.17;
 const shade=(h,k)=>{const c=hex2rgb(h).map(v=>clamp(Math.round(v*k),0,255));return(c[0]<<16)|(c[1]<<8)|c[2];};
 const KTEX={};
 const kTex=(key,fn)=>KTEX[key]||(KTEX[key]=mkTex(fn));
@@ -42,14 +44,27 @@ function mergeBoxes(list){
 function sculpt(parent,spec,M){for(const k in spec){if(!spec[k].length)continue;const me=new THREE.Mesh(mergeBoxes(spec[k]),M[k]);me.castShadow=true;parent.add(me);}}
 // per-skin palette: straw guard wears dull iron and leather, grey knight bright plate, red swordmaster dark steel with red
 const SKIN={0x8a7a4a:{steel:0x7c7b73,dark:0x4e4a42,trim:0x7a6a48,crest:0},0x4b5a78:{steel:0x7d8690,dark:0x4a5058,trim:0xb8913a,crest:1},0x8e2222:{steel:0x5d6168,dark:0x2c2e33,trim:0xb8913a,crest:2}};
-function buildKnight(tab){
+function knightMats(tab){
   const sk=SKIN[tab]||SKIN[0x4b5a78];
-  const g=new THREE.Group();
   const Ph=t=>new THREE.MeshPhongMaterial({map:t,specular:0x2c3036,shininess:22}),L=t=>new THREE.MeshLambertMaterial({map:t});
   const M={steel:Ph(kTex('st'+sk.steel,plateFn(sk.steel))),dark:Ph(kTex('dk'+sk.dark,plateFn(sk.dark))),mail:L(kTex('mail',mailFn(0x5d636b))),
     cloth:L(kTex('cloth'+tab,clothFn(tab))),leather:L(kTex('leather',leatherFn(0x5a3e2a))),trim:Ph(kTex('tr'+sk.trim,plateFn(sk.trim))),
     plume:L(kTex('plume'+tab,fill(shade(tab,1.15),.14))),slit:new THREE.MeshLambertMaterial({color:0x0c0d10})};
-  const mats=Object.values(M);
+  return {M,sk,mats:Object.values(M)};
+}
+// arm: upper (mail sleeve + rerebrace), lower (couter with wing + vambrace), gauntlet with flared cuff and knuckle plate.
+// Shared by the knight and by the player's first-person view, so both wear the same armour.
+function buildArm(M,parent,s){
+  const A=K_DIM.armA,B=K_DIM.armB;
+  const seg=(len,spec)=>{const p=new THREE.Group();parent.add(p);sculpt(p,spec,M);p.userData.len=len;return p;};
+  const up=seg(A,{mail:[[.11,.11,A,0,0,A/2]],steel:[[.13,.13,A*.55,0,0,A*.62]]});
+  const lo=seg(B,{steel:[[.14,.14,.09,0,0,.01],[.115,.115,B*.75,0,0,B*.55]],dark:[[.03,.12,.09,s*.08,0,.01]]});
+  const hand=new THREE.Group();parent.add(hand);sculpt(hand,{dark:[[.1,.11,.12,0,0,.02],[.135,.135,.045,0,0,-.05]],steel:[[.105,.035,.09,0,.055,.025]]},M);
+  return{up,lo,hand,pa:0};
+}
+function buildKnight(tab){
+  const {M,sk,mats}=knightMats(tab);
+  const g=new THREE.Group();
   // legs (pivot at hip): mail thigh, plate cuisse, knee cop with wings, greave with ridge, stepped sabaton
   const leg=x=>{const p=new THREE.Group();p.position.set(x,K_DIM.hipY,0);g.add(p);
     sculpt(p,{mail:[[.19,.42,.21,0,-.2,0]],
@@ -85,14 +100,7 @@ function buildKnight(tab){
   const eyes=[-1,1].map(s=>bx(.045,.016,.01,eyeM,s*.047,.19,-.168,head));
   const xMarks=[-1,1].map(s=>{const p=new THREE.Group();p.position.set(s*.047,.19,-.17);head.add(p);
     for(const r of[.785,-.785]){const m=new THREE.Mesh(new THREE.BoxGeometry(.05,.012,.01),eyeM);m.rotation.z=r;p.add(m);}p.visible=false;return p;});
-  // arms: upper (mail sleeve + rerebrace), lower (couter with wing + vambrace), gauntlet with flared cuff and knuckle plate
-  const seg=(len,spec)=>{const p=new THREE.Group();g.add(p);sculpt(p,spec,M);p.userData.len=len;return p;};
-  const A=K_DIM.armA,B=K_DIM.armB;
-  const arm=s=>{const up=seg(A,{mail:[[.11,.11,A,0,0,A/2]],steel:[[.13,.13,A*.55,0,0,A*.62]]});
-    const lo=seg(B,{steel:[[.14,.14,.09,0,0,.01],[.115,.115,B*.75,0,0,B*.55]],dark:[[.03,.12,.09,s*.08,0,.01]]});
-    const hand=new THREE.Group();g.add(hand);sculpt(hand,{dark:[[.1,.11,.12,0,0,.02],[.135,.135,.045,0,0,-.05]],steel:[[.105,.035,.09,0,.055,.025]]},M);
-    return{up,lo,hand,pa:0};};
-  const armR=arm(1),armL=arm(-1);
+  const armR=buildArm(M,g,1),armL=buildArm(M,g,-1);
   const pivot=new THREE.Group();pivot.rotation.order='YXZ';g.add(pivot);
   // collision volumes (local to head / torso) used by the arm IK and by the clipping tests
   const colBoxes=[{obj:head,min:new THREE.Vector3(-.14,-.01,-.165),max:new THREE.Vector3(.14,.34,.15)},
@@ -105,7 +113,16 @@ const _S=new THREE.Vector3(),_D=new THREE.Vector3(),_N=new THREE.Vector3(),_E=ne
 const SH_FWD=.05;
 function shoulderAt(side,yaw,out){const x=side*K_DIM.shX,z=-SH_FWD,c=Math.cos(yaw),s=Math.sin(yaw);return out.set(x*c+z*s,K_DIM.torsoY+K_DIM.shY,-x*s+z*c);}
 function overReach(side,yaw,h){const d=shoulderAt(side,yaw,_S).distanceTo(h)-(K_DIM.armA+K_DIM.armB)*.95;return d>0?d:0;}
-function placeSeg(p,a,b,len){_D.copy(b).sub(a);const l=Math.max(.01,_D.length());p.position.copy(a);p.quaternion.setFromUnitVectors(Z,_D.divideScalar(l));p.scale.set(1,1,l/len);}
+// plain two-bone IK toward a pole direction (first-person arms: no body to avoid, the camera is the head)
+function ikPlace(arm,S,H,pole){
+  _D.copy(H).sub(S);const dist=_D.length();_D.divideScalar(Math.max(dist,1e-4));
+  const A=K_DIM.armA,B=K_DIM.armB,st=clamp(dist/((A+B)*.995),1,1.15),a=A*st,b=B*st,d=clamp(dist,Math.abs(a-b)+.05,(a+b)*.995);
+  const ca=clamp((a*a+d*d-b*b)/(2*a*d),-1,1),sa=Math.sqrt(1-ca*ca);
+  _N.copy(pole).addScaledVector(_D,-pole.dot(_D));if(_N.lengthSq()<1e-6)_N.set(0,-1,0);_N.normalize();
+  _E.copy(S).addScaledVector(_D,a*ca).addScaledVector(_N,a*sa);_W.copy(S).addScaledVector(_D,d);
+  const w=arm.w||1;placeSeg(arm.up,S,_E,A,w);placeSeg(arm.lo,_E,_W,B,w);arm.hand.position.copy(_W);arm.hand.quaternion.copy(arm.lo.quaternion);arm.hand.scale.setScalar(arm.hw||1);
+  return Math.max(0,dist-d);}
+function placeSeg(p,a,b,len,w=1){_D.copy(b).sub(a);const l=Math.max(.01,_D.length());p.position.copy(a);p.quaternion.setFromUnitVectors(Z,_D.divideScalar(l));p.scale.set(w,w,l/len);}
 // --- body avoidance: arms are kept outside the helmet and the chest/faulds block.
 // Both are boxes tested in their own local space (head follows a third of the torso twist).
 const HEAD_BOX={hx:.14,y0:-.01,y1:.34,hz:.16},TORSO_BOX={hx:.2,y0:-.17,y1:.47,hz:.15};
@@ -172,19 +189,20 @@ function updateKnight(k,f,pz,dt){
   const dead=f.state==='dead',ey=f.state==='stun'?.3:k.blinkT>0?.15:1;
   for(const e of k.eyes){e.visible=!dead;e.scale.y=ey;}for(const x of k.xMarks)x.visible=dead;
 }
-/* ---------------- poses (camera-space hand + rotation; b* = bot-space hand) ---------------- */
+/* ---------------- poses (camera-space hand + rotation for the first-person view; b* = bot-space hand) ----------------
+   Both are two-handed: camera-space hands are placed so the knight's real arms (from shoulders below the visor) reach the grip. */
 const P=(x,y,z,yaw,pitch,roll,spin,bx,by,bz,byaw,bpitch)=>({x,y,z,yaw,pitch,roll,spin,bx,by,bz,byaw:byaw??yaw,bpitch:bpitch??pitch});
 const POSE={
-  idle:  P(.32,-.42,-.55, .15,-.35,-.25,0,   .42,1.0,-.38),
-  slashW:P(.24,-.12,-.5, -1.0,-1.25,-.25,1.57, .7,1.3,-.05),
-  slashE:P(-.52,-.32,-.55, 1.35,-1.5,.2,1.57, -.4,1.15,-.45),
+  idle:  P(.12,-.24,-.42, .15,-.35,-.25,0,   .42,1.0,-.38),
+  slashW:P(.24,-.12,-.45, -1.0,-1.25,-.25,1.57, .7,1.3,-.05),
+  slashE:P(-.27,-.32,-.35, 1.35,-1.5,.2,1.57, -.4,1.15,-.45),
   stabW: P(.24,-.27,-.36, .06,-1.5,0,0,     .5,.92,.25, .45,-1.2),
-  stabE: P(.1,-.24,-.95, 0,-1.57,0,0,        .12,1.23,-.8),
-  overW: P(.22,.1,-.3, .1,.55,-.1,0,          .45,1.75,-.05),
-  overE: P(.08,-.5,-.65, 0,-2.1,0,0,          .1,.95,-.62),
-  parry: P(.04,-.1,-.5, 1.5,-1.25,0,1.57,     .15,1.42,-.62),
-  recoil:P(.52,-.05,-.4, -.6,.25,-.6,0,       .5,1.55,-.05),
-  stun:  P(.3,-.7,-.45, .3,-.1,-.6,0,         .4,.8,-.3),
+  stabE: P(.1,-.24,-.55, 0,-1.57,0,0,        .12,1.23,-.8),
+  overW: P(.05,.3,-.3, .1,.55,-.1,0,          .45,1.75,-.05),
+  overE: P(.13,-.45,-.55, 0,-2.1,0,0,          .1,.95,-.62),
+  parry: P(-.06,-.15,-.5, 1.5,-1.25,0,1.57,     .15,1.42,-.62),
+  recoil:P(.17,-.25,-.4, -.6,.25,-.6,0,       .5,1.55,-.05),
+  stun:  P(.15,-.6,-.35, .3,-.1,-.6,0,         .4,.8,-.3),
 };
 // two-handed grips: bot-space hands sit in front of the chest so both arms reach without crossing the body
 const TWO_B={idle:[0,1.23,-.43],slashW:[.32,1.42,-.27],slashE:[-.22,1.25,-.35],stabW:[.12,1.18,-.4],stabE:[.04,1.32,-.62],
@@ -230,10 +248,20 @@ function setupKnight(){
   scene.add(knight.g);
 }
 let vm=null;const vmRoot=new THREE.Group();vmScene.add(vmRoot);
+const VM_WPN=.7,PLAYER_TAB=0x4b5a78;
+// shoulders in camera space: the camera sits at the visor, shoulders are lower and a little behind it
+const VM_SH=[new THREE.Vector3(K_DIM.shX,K_DIM.torsoY+K_DIM.shY-EYE_H,-SH_FWD-EYE_Z),new THREE.Vector3(-K_DIM.shX,K_DIM.torsoY+K_DIM.shY-EYE_H,-SH_FWD-EYE_Z)];
+const VM_POLE=[new THREE.Vector3(.7,-.7,.1),new THREE.Vector3(-.7,-.7,.1)],_vg=new THREE.Vector3(),_ve=new THREE.Euler(0,0,0,'YXZ');
 function setupViewmodel(){
-  if(vm)vmRoot.remove(vm.pivot);
-  const pivot=new THREE.Group();pivot.rotation.order='YXZ';const wp=buildWeapon(player.weapon.id);wp.w.scale.setScalar(.78);pivot.add(wp.w);
-  // gauntlet
-  const hand=new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.13),new THREE.MeshLambertMaterial({color:0x8a939c}));hand.position.set(0,.02,0);wp.spin.add(hand);
-  vmRoot.add(pivot);vm={pivot,wp};
+  if(vm)for(const o of vm.parts)vmRoot.remove(o);
+  const pivot=new THREE.Group();pivot.rotation.order='YXZ';const wp=buildWeapon(player.weapon.id);wp.w.scale.setScalar(VM_WPN);pivot.add(wp.w);
+  const {M}=knightMats(PLAYER_TAB);const arms=[buildArm(M,vmRoot,1),buildArm(M,vmRoot,-1)];
+  // upper arms sit right at the camera: only forearms and gauntlets are drawn, slimmed so they don't wall off the view
+  for(const a of arms){a.up.visible=false;a.w=.6;a.hw=.8;}
+  vmRoot.add(pivot);vm={pivot,wp,arms,parts:[pivot,...arms.flatMap(a=>[a.up,a.lo,a.hand])],reachErr:0};
+}
+// call after vm.pivot is posed: right hand on the pivot, left hand further down the grip/haft
+function updateViewArms(){
+  const pv=vm.pivot;_vg.set(0,-.18*VM_WPN,0).applyEuler(_ve.set(pv.rotation.x,pv.rotation.y,pv.rotation.z,'YXZ')).add(pv.position);
+  vm.reachErr=Math.max(ikPlace(vm.arms[0],VM_SH[0],pv.position,VM_POLE[0]),ikPlace(vm.arms[1],VM_SH[1],_vg,VM_POLE[1]));
 }

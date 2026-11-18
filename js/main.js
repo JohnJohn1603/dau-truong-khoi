@@ -45,8 +45,8 @@ function step(t){
   if(inMatch()||phase==='matchEnd'){
     shake=Math.max(0,shake-rdt*2.5);const sh=shake*shake*.35;
     const sp=Math.hypot(player.vel.x,player.vel.z);const bob=Math.sin(player.walk*2.6)*.04*Math.min(1,sp/4);
-    let eye=1.62+bob,roll=0;
-    if(player.state==='dead'){const k=Math.min(1,player.deadT/.8);eye=lerp(1.62,.35,easeOut(k));roll=easeOut(k)*.6;}
+    let eye=EYE_H+bob,roll=0;
+    if(player.state==='dead'){const k=Math.min(1,player.deadT/.8);eye=lerp(EYE_H,.35,easeOut(k));roll=easeOut(k)*.6;}
     if(player.state==='stun')roll=Math.sin(now*14)*.03;
     camera.position.set(player.pos.x+rand(-sh,sh),eye+rand(-sh,sh),player.pos.z+rand(-sh,sh));
     camera.rotation.set(camPitch+rand(-sh,sh)*.4,camYaw,roll);
@@ -56,7 +56,7 @@ function step(t){
   const showVm=inMatch()&&player.state!=='dead';vmRoot.visible=showVm;
   if(showVm&&vm){vmRoot.position.copy(camera.position);vmRoot.quaternion.copy(camera.quaternion);
     const pz=poseFor(player,dt);const sp=Math.hypot(player.vel.x,player.vel.z);const bx=Math.sin(player.walk*2.6)*.012*Math.min(1,sp/4),by=Math.abs(Math.cos(player.walk*2.6))*.012*Math.min(1,sp/4);
-    vm.pivot.position.set(pz.x+bx,pz.y+by,pz.z);vm.pivot.rotation.set(pz.pitch,pz.yaw,pz.roll);vm.wp.spin.rotation.y=pz.spin;}
+    vm.pivot.position.set(pz.x+bx,pz.y+by,pz.z);vm.pivot.rotation.set(pz.pitch,pz.yaw,pz.roll);vm.wp.spin.rotation.y=pz.spin;updateViewArms();}
   if(inMatch())updateHUD(rdt);
   renderer.clear();renderer.render(scene,camera);renderer.clearDepth();if(showVm)renderer.render(vmScene,camera);
 }
