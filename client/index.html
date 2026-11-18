@@ -59,7 +59,7 @@
       <label class="chk"><input type="checkbox" id="optInd"> Hiện chỉ báo đòn của bot (cho người mới)</label>
       <div class="opt"><label class="lbl" for="testerName">Tên của bạn (ghi kèm kết quả gửi cho người làm game)</label><input class="txt" id="testerName" maxlength="32" placeholder="Ví dụ: Minh" autocomplete="nickname"></div>
     </div>
-    <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="viewBtn" type="button">Xem nhân vật</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
+    <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="netBtn" type="button">Chơi qua mạng</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="viewBtn" type="button">Xem nhân vật</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
     <ul class="keys">
       <li><span><kbd>Chuột trái</kbd></span><span>Chém ngang</span></li>
       <li><span><kbd>Cuộn lên</kbd> / <kbd>R</kbd></span><span>Đập thẳng</span></li>
@@ -129,6 +129,28 @@
       </div>
     </div>
     <div class="row"><button class="cta" id="viewClose" type="button">Đóng</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="netScr" hidden>
+  <div class="panel">
+    <header><p class="eyebrow">Chơi qua mạng · đánh tự do 3 người</p><h2>Phòng chơi</h2>
+      <p class="lede">Một người tạo phòng và gửi mã 4 ký tự cho bạn bè. Chỗ trống do bot đánh thay. Ai còn đứng cuối thắng hiệp, thắng 3 hiệp là thắng trận. Tên và vũ khí lấy từ menu.</p></header>
+    <div class="opt"><label class="lbl" for="netUrl">Địa chỉ máy chủ</label><input class="txt" id="netUrl" placeholder="ws://localhost:8787" autocomplete="off"></div>
+    <div id="netJoinBox" class="opts">
+      <div class="row"><button class="cta" id="netCreate" type="button">Tạo phòng</button></div>
+      <div class="opt"><label class="lbl" for="netCode">Hoặc nhập mã phòng của bạn bè</label>
+        <div class="row"><input class="txt" id="netCode" maxlength="4" placeholder="VD: K7QM" autocomplete="off" style="max-width:140px;text-transform:uppercase"><button class="ghost" id="netJoin" type="button">Vào phòng</button></div></div>
+    </div>
+    <div id="netLobby" class="opts" hidden>
+      <div class="opt"><span class="lbl">Mã phòng · gửi cho bạn bè</span><div class="row"><b id="netRoomCode" class="roomcode">----</b><button class="ghost" id="netCopy" type="button">Sao chép mã</button></div></div>
+      <div class="opt"><span class="lbl">Người trong phòng (tối đa 3)</span><ol id="netPlayers" class="plist"></ol></div>
+      <div class="opt" id="netDiffRow"><span class="lbl">Độ khó bot lấp chỗ</span>
+        <div class="seg" id="netDiff"><button type="button" data-v="easy">Dễ</button><button type="button" data-v="med">Vừa</button><button type="button" data-v="hard">Khó</button></div></div>
+      <div class="row"><button class="cta" id="netStart" type="button">Bắt đầu</button><span class="savest" id="netWait">Chờ chủ phòng bấm bắt đầu…</span><button class="ghost" id="netLeave" type="button">Rời phòng</button></div>
+    </div>
+    <div class="row"><span class="savest" id="netStatus"></span><span class="savest">Ping: <b id="netPing">–</b></span></div>
+    <div class="row"><button class="ghost" id="netBack" type="button">Về menu</button></div>
   </div>
 </div>
 

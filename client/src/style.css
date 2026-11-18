@@ -130,4 +130,7 @@ table.res td.note{white-space:normal;min-width:220px;color:var(--parch-dim)}
 .vacts .ghost:active{background:var(--parch);color:var(--ink)}
 .vside .seg button{padding:8px 12px}
 @media (max-width:720px){.viewer{grid-template-columns:1fr}.stage{aspect-ratio:1/1}}
+.roomcode{font-family:var(--display);font-size:44px;letter-spacing:.12em;color:var(--gold)}
+.plist{margin:6px 0 0;padding-left:22px;display:grid;gap:4px;font-size:15px}
+.plist li.empty{color:var(--parch-dim)}
 @media (prefers-reduced-motion:reduce){.pop,.dmg{animation-duration:.01s}.bar>i{transition:none}}
