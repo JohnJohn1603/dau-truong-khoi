@@ -4,6 +4,7 @@
 document.querySelectorAll('.seg[data-key]').forEach(seg=>{const key=seg.dataset.key;const sync=()=>seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===CFG[key])));
   seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;CFG[key]=b.dataset.v;sync();save();if(key==='diff'||key==='bw'){if(phase==='attract'){bot.weapon=WEAPONS[CFG.bw==='axe'?'axe':'sword'];setupKnight();}}});sync();});
 $('optInd').checked=CFG.indicator;$('optInd').onchange=e=>{CFG.indicator=e.target.checked;save();};
+$('optDbl').checked=CFG.dblTap;$('optDbl').onchange=e=>{CFG.dblTap=e.target.checked;save();};
 if(matchMedia('(pointer: coarse)').matches&&!matchMedia('(any-pointer: fine)').matches)$('touchWarn').hidden=false;
 const TUNE=[
   ['parryWindow','Khoảng đỡ chuẩn',80,350,10,v=>v+' ms'],['counterWindow','Khoảng phản đòn khớp loại',120,400,10,v=>v+' ms'],['dodgeCost','Thể lực mỗi lần lách',0,40,1,v=>v+''],['dodgeCD','Hồi chiêu lách',.2,2,.05,v=>v.toFixed(2)+' giây'],['atkSpeed','Tốc độ đòn',.6,1.6,.05,v=>v.toFixed(2)+'×'],
