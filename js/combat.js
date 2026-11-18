@@ -128,7 +128,7 @@ function damage(def,dmg,att){
   SFX.hit();blood(midpoint(att,def),14);hitstop=S.hitstop/1000;
   if(def.isBot){stats.hits++;stats.dmg+=dmg;dmgNum(def,Math.round(dmg));shake=Math.max(shake,.1);}
   else{stats.taken++;shake=Math.max(shake,.4);hurt=1;}
-  if(def.hp<=0)kill(def);
+  if(def.hp<=0){def.killType=att.atkType;kill(def);} // the finishing blow decides how the body falls
 }
 function kill(f){setState(f,'dead');f.deadT=0;SFX.boom();
   if(f.isBot){score.p++;popup('Hạ gục','good');}else{score.b++;popup('Bạn đã ngã','bad');}

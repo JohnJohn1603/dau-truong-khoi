@@ -198,14 +198,33 @@ function updateKnight(k,f,pz,dt){
   let thL=sp*.5*walkA,thR=-sp*.5*walkA,knL=-(Math.max(0,cp)*.95+.08)*walkA,knR=-(Math.max(0,-cp)*.95+.08)*walkA;
   let lean=hk*.1,roll=0,y=-Math.abs(sp)*.025*walkA-hk*.02;
   if(dead){
-    // death: knees buckle and the hips drop, then the body topples forward with a slight twist and a small bounce
-    const t=f.deadT??0,kn=easeOut(clamp(t/.32,0,1)),fl=clamp((t-.22)/.5,0,1),fall=fl*fl;
-    const bt=(t-.72)/.25,bounce=bt>0&&bt<1?Math.sin(bt*Math.PI)*.06*(1-bt):0;
+    // death reacts to the finishing blow (f.killType): overhead → crumple forward, slash → spun and dropped on the side,
+    // stab → shoved back onto the back. Caller resets g's position and yaw every frame, so the offsets here are absolute.
+    const t=f.deadT??0,type=f.killType||'over';
     if(t<.05)k.fallSide=Math.random()<.5?-1:1;
-    thL=thR=.95*kn*(1-fall*.8);knL=knR=-1.75*kn*(1-fall*.75); // legs straighten out as the body hits the ground
-    const hip=K_DIM.thigh*Math.cos(.95*kn)+K_DIM.shin*Math.cos(.8*kn); // hip height while kneeling
-    lean=-(1.38-bounce)*fall;roll=k.fallSide*.22*fall;y=(hip-K_DIM.hipY)*(1-fall)+.08*fall;
-    k.head.rotation.x-=.45*kn;k.head.rotation.z+=k.fallSide*.3*fall;
+    const land=(start,dur)=>{const fl=clamp((t-start)/dur,0,1),bt=(t-start-dur)/.25;return[fl*fl,bt>0&&bt<1?Math.sin(bt*Math.PI)*.06*(1-bt):0];};
+    if(type==='stab'){
+      // shoved back: stagger a step, knees give, then fall flat on the back
+      const st=easeOut(clamp(t/.3,0,1)),[fall,bounce]=land(.16,.5),up=1-fall;
+      thL=.25*st*up+.1*fall;thR=-.45*st*up+.1*fall;knL=-.35*st*up;knR=-.6*st*up;
+      lean=(1.42-bounce)*fall+.15*st*up;roll=k.fallSide*.1*fall;y=-.07*st*up+.1*fall;
+      const back=.3*st+.3*fall,yw=k.g.rotation.y;k.g.position.x+=Math.sin(yw)*back;k.g.position.z+=Math.cos(yw)*back;
+      k.head.rotation.x+=.6*fall+.3*st*up;
+    }else if(type==='slash'){
+      // cut across (blade travels toward the victim's right): spun with the cut, right knee folds, topples onto the right side
+      const sp=easeOut(clamp(t/.28,0,1)),[fall,bounce]=land(.2,.5),up=1-fall;
+      thL=-.15*sp;thR=.35*sp*up;knL=-.15*sp;knR=-1.1*sp*up-.2*fall;
+      lean=-.25*sp*up-.1*fall;roll=-(1.45-bounce)*fall-.15*sp*up;y=-.08*sp*up+.16*fall;
+      k.g.rotation.y-=.7*sp+.25*fall;
+      k.head.rotation.z-=.45*fall;k.head.rotation.x-=.25*sp;
+    }else{
+      // overhead: knees buckle and the hips drop, then the body topples forward with a slight twist and a small bounce
+      const kn=easeOut(clamp(t/.3,0,1)),[fall,bounce]=land(.22,.5);
+      thL=thR=.95*kn*(1-fall*.8);knL=knR=-1.75*kn*(1-fall*.75); // legs straighten out as the body hits the ground
+      const hip=K_DIM.thigh*Math.cos(.95*kn)+K_DIM.shin*Math.cos(.8*kn); // hip height while kneeling
+      lean=-(1.38-bounce)*fall;roll=k.fallSide*.22*fall;y=(hip-K_DIM.hipY)*(1-fall)+.08*fall;
+      k.head.rotation.x-=.45*kn;k.head.rotation.z+=k.fallSide*.3*fall;
+    }
   }
   k.legL.rotation.x=thL;k.legR.rotation.x=thR;k.legL.userData.shin.rotation.x=knL;k.legR.userData.shin.rotation.x=knR;
   k.g.rotation.x=lean;k.g.rotation.z=roll;k.g.position.y=y;

@@ -45,10 +45,13 @@ function step(t){
     shake=Math.max(0,shake-rdt*2.5);const sh=shake*shake*.35;
     const sp=Math.hypot(player.vel.x,player.vel.z);const bob=Math.sin(player.walk*2.6)*.04*Math.min(1,sp/4);
     let eye=EYE_H+bob,roll=0;
-    if(player.state==='dead'){const k=Math.min(1,player.deadT/.8);eye=lerp(EYE_H,.35,easeOut(k));roll=easeOut(k)*.6;}
+    let pitchAdd=0,back=0;
+    // first-person death follows the finishing blow: overhead → slump and look down, slash → keel over sideways, stab → fall back and stare at the sky
+    if(player.state==='dead'){const k=easeOut(Math.min(1,player.deadT/.8)),ty=player.killType||'over';eye=lerp(EYE_H,.35,k);
+      if(ty==='stab'){pitchAdd=1.1*k;back=.45*k;roll=.15*k;}else if(ty==='slash'){roll=1.25*k;pitchAdd=-.15*k;}else{pitchAdd=-.55*k;roll=.35*k;}}
     if(player.state==='stun')roll=Math.sin(now*14)*.03;
-    camera.position.set(player.pos.x+rand(-sh,sh),eye+rand(-sh,sh),player.pos.z+rand(-sh,sh));
-    camera.rotation.set(camPitch+rand(-sh,sh)*.4,camYaw,roll);
+    camera.position.set(player.pos.x+Math.sin(camYaw)*back+rand(-sh,sh),eye+rand(-sh,sh),player.pos.z+Math.cos(camYaw)*back+rand(-sh,sh));
+    camera.rotation.set(clamp(camPitch+pitchAdd,-1.5,1.5)+rand(-sh,sh)*.4,camYaw,roll);
   }else{const a=performance.now()/1000*.12;camera.position.set(Math.sin(a)*9,3.2,Math.cos(a)*9);camera.lookAt(0,1.4,0);}
   sky.position.copy(camera.position);
   // viewmodel
