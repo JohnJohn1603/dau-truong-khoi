@@ -2,7 +2,8 @@
 
 Game đấu kiếm sinh tồn góc nhìn thứ nhất, đồ hoạ voxel, chạy trên trình duyệt. Hiện có đấu tay đôi với bot, đánh tự do 3 người (bạn và 2 bot) và phòng tập phản đòn. Thắng 3 hiệp trước là thắng trận.
 
-- **Bản đang chạy:** https://claude.ai/artifact/5U3VY2e5M5hA5eaqv9Uens
+- **Trang game (chơi qua mạng được):** https://johnjohn1603.github.io/dau-truong-khoi/
+- **Bản trên claude.ai (chỉ chơi với bot):** https://claude.ai/artifact/5U3VY2e5M5hA5eaqv9Uens
 - **Lộ trình phát triển:** https://claude.ai/artifact/5hR5UfkL8GRr3q8JhR6S7j
 
 ## Chạy trên máy
@@ -61,6 +62,15 @@ Cách máy chủ giữ công bằng:
 - Máy chủ quyết định mọi thứ. Người chơi chỉ gửi thao tác.
 - Thao tác phòng thủ (đỡ, phản đòn, lách) được lùi thời điểm theo độ trễ của người bấm, tối đa 150 ms. Đòn trúng người chơi thật cũng được xét muộn đúng chừng ấy để những thao tác đó kịp tính.
 - Máy của bạn tự dự đoán chuyển động và đòn của chính bạn, nên thấy ngay, rồi khớp lại theo máy chủ. Người khác hiển thị chậm 100 ms, nội suy giữa các ảnh chụp trạng thái (20 lần/giây).
+
+## Triển khai
+
+Mỗi lần push lên `main`, GitHub Actions (`.github/workflows/deploy.yml`) làm ba việc:
+1. kiểm tra kiểu và chạy một trận mô phỏng trên Node
+2. build trang game và đăng lên GitHub Pages, với địa chỉ máy chủ `wss://dtk-arena-sin.fly.dev` gắn sẵn
+3. triển khai máy chủ phòng lên Fly.io, vùng Singapore (`fly.toml`, `Dockerfile`), nếu repo có secret `FLY_API_TOKEN`
+
+Máy chủ dùng một máy duy nhất, tự tắt khi không ai chơi và tự bật khi có người kết nối. Lần kết nối đầu sau khi máy tắt sẽ chậm vài giây. Trang `https://dtk-arena-sin.fly.dev/` cho biết số phòng và số người đang chơi.
 
 ## Điều khiển
 
