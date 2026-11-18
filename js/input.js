@@ -18,6 +18,7 @@ function separate(){const dx=bot.pos.x-player.pos.x,dz=bot.pos.z-player.pos.z,d=
 
 /* ---------------- input ---------------- */
 const K={};let mdx=0,mdy=0,camYaw=0,camPitch=0,locked=false,lockEverWorked=false,lockFailed=false,lastWheel=0,rmb=false,fkey=false,muted=false;
+const TAP_DIR={KeyW:[0,1],KeyS:[0,-1],KeyA:[-1,0],KeyD:[1,0]},DBL_TAP_MS=260;let lastTap={code:null,t:0};
 const inMatch=()=>phase==='countdown'||phase==='fight'||phase==='roundEnd';
 addEventListener('keydown',e=>{
   if(e.repeat&&!['KeyW','KeyA','KeyS','KeyD'].includes(e.code))return;
@@ -25,7 +26,9 @@ addEventListener('keydown',e=>{
   if(!inMatch()||paused){if(e.code==='Escape'&&paused&&lockFailed)resume();return;}
   if(e.code==='Escape'&&!locked){pause();return;}
   if(e.code==='KeyQ')feint(player);
-  if(e.code==='Space'){const f=(K.KeyW||K.ArrowUp?1:0)-(K.KeyS||K.ArrowDown?1:0),s=(K.KeyD?1:0)-(K.KeyA?1:0);dodge(player,s,f);}
+  // Lách: C + held direction, or double-tap a direction key (Space stays free for a future jump)
+  if(e.code==='KeyC'){const f=(K.KeyW||K.ArrowUp?1:0)-(K.KeyS||K.ArrowDown?1:0),s=(K.KeyD?1:0)-(K.KeyA?1:0);dodge(player,s,f);}
+  if(CFG.dblTap&&TAP_DIR[e.code]){const t=performance.now();if(lastTap.code===e.code&&t-lastTap.t<DBL_TAP_MS){const d=TAP_DIR[e.code];dodge(player,d[0],d[1]);lastTap.code=null;}else lastTap={code:e.code,t};}
   if(e.code==='KeyE')startAttack(player,'stab');
   if(e.code==='KeyR')startAttack(player,'over');
   if(e.code==='KeyF'&&!fkey){fkey=true;parryPress(player);}
