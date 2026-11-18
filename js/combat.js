@@ -53,7 +53,7 @@ function parryPress(f){
   f.buffer=null;setState(f,'parry',0);f.parryStart=now;return true;
 }
 function parryRelease(f){if(f.state==='parry'){setState(f,'idle');f.lastParryRelease=now;}}
-// Lách: a short dash in a direction relative to facing (side, fwd in -1..1; none = backwards).
+// Lách: a short sidestep to the left (side<0) or right (side>0) of where you face; there is no back or forward dodge.
 // Costs stamina, has a cooldown, gives no invulnerability: it only works by leaving the swing's reach or arc.
 const DODGE_T=.24;
 // Turn cap once a swing is committed (late wind-up and release), in rad/s: a sidestep at the last moment can beat tracking.
@@ -65,7 +65,7 @@ function dodge(f,side,fwd){
   if(!ok)return false;
   if(now<(f.dodgeReady||0)){if(!f.isBot)popup('Chưa lách được','warn');return false;}
   if(f.st<S.dodgeCost){if(!f.isBot)popup('Hết thể lực','warn');return false;}
-  if(!side&&!fwd)fwd=-1;const l=Math.hypot(side,fwd);side/=l;fwd/=l;
+  if(Math.abs(side)<.5)return false;side=Math.sign(side);fwd=0;
   if(f.state==='parry')parryRelease(f);
   spend(f,S.dodgeCost);f.buffer=null;
   const s=Math.sin(f.yaw),c=Math.cos(f.yaw),sp=fwd>.5?7.5:(Math.abs(side)>.5?9.5:8.5);

@@ -57,7 +57,6 @@
           <div class="seg" data-key="bw"><button type="button" data-v="rand">Ngẫu nhiên</button><button type="button" data-v="sword">Kiếm</button><button type="button" data-v="axe">Rìu</button></div></div>
       </div>
       <label class="chk"><input type="checkbox" id="optInd"> Hiện chỉ báo đòn của bot (cho người mới)</label>
-      <label class="chk"><input type="checkbox" id="optDbl"> Lách bằng nhấn đúp phím hướng</label>
       <div class="opt"><label class="lbl" for="testerName">Tên của bạn (ghi kèm kết quả gửi cho người làm game)</label><input class="txt" id="testerName" maxlength="32" placeholder="Ví dụ: Minh" autocomplete="nickname"></div>
     </div>
     <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="viewBtn" type="button">Xem nhân vật</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
@@ -70,14 +69,14 @@
       <li><span>Đang vung, bấm nút đòn khác</span><span>Đổi đòn giữa chừng</span></li>
       <li><span><kbd>Q</kbd></span><span>Nhử đòn (huỷ khi đang vào đòn)</span></li>
       <li><span><kbd>W A S D</kbd> · <kbd>Shift</kbd></span><span>Di chuyển · chạy</span></li>
-      <li><span>Nhấn đúp <kbd>W A S D</kbd> / <kbd>C</kbd> + hướng</span><span>Lách (C không giữ hướng = lùi)</span></li>
+      <li><span>Nhấn đúp <kbd>A</kbd> / <kbd>D</kbd></span><span>Lách trái / phải</span></li>
       <li><span><kbd>Esc</kbd></span><span>Tạm dừng, chỉnh thông số</span></li>
       <li><span><kbd>M</kbd></span><span>Bật/tắt âm thanh</span></li>
     </ul>
     <p class="tip"><b>Đỡ (chuột phải):</b> đỡ được mọi đòn nhưng tốn thể lực, hết thể lực là vỡ thế. Bấm đỡ trong <b id="pwTxt">200</b> ms trước khi đòn chạm là đỡ chuẩn, không tốn thể lực. Bấm đỡ liên tục sẽ mất khoảng đỡ chuẩn.<br>
     <b>Phản đòn khớp loại:</b> trong <b id="cwTxt">250</b> ms trước khi đòn chạm, bấm đúng loại đòn đối thủ đang ra (chém → chuột trái, đập → cuộn lên, đâm → cuộn xuống). Đúng loại thì đỡ được, không tốn thể lực, đối thủ bị bật đòn và đòn của bạn ra rất nhanh. Sai loại là ăn đòn. Mỗi loại đòn có tư thế và tiếng vung riêng để nhận ra sớm.<br>
     <b>Đổi đòn:</b> đang vung, bấm nút của loại đòn khác để chuyển sang đòn đó (tốn thêm thể lực, chậm thêm một chút, mỗi đòn đổi một lần). Dùng để lừa người đang chờ phản đòn.<br>
-    <b>Lách:</b> nhấn đúp W A S D, hoặc bấm C trong lúc giữ hướng, để lướt nhanh một đoạn. Tốn thể lực và có hồi chiêu, không bất tử: chỉ tránh được khi ra khỏi tầm hoặc cung chém. Lùi tránh được chém ngang, lách ngang tránh được đâm và đập.</p>
+    <b>Lách:</b> nhấn đúp A hoặc D để lướt sang trái hoặc phải. Tốn thể lực và có hồi chiêu, không bất tử: lách đúng lúc tránh được đâm và đập, còn chém ngang quá rộng nên phải đỡ hoặc lùi ra khỏi tầm.</p>
     <details id="tuneWrapMenu"><summary>Chỉnh thông số</summary><div id="tuneHostMenu"></div></details>
   </div>
 </div>

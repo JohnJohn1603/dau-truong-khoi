@@ -47,10 +47,9 @@ function makeBrain(me){return{
     const th=this.threat;
     if(th&&!th.decided&&now>=th.perceiveAt){th.decided=true;const ta=th.att;
       if(ta.state==='windup'||ta.state==='release'){
-        // lách: back out of a wide slash, sidestep a narrow stab or overhead; more likely when low on stamina
-        const wantDodge=c.dodgeP>0&&f.state!=='windup'&&f.st>=S.dodgeCost&&Math.random()<(f.st<35?c.dodgeP*2:c.dodgeP);
-        if(wantDodge){this.dodgeAt=Math.max(now,th.impact-rand(.22,.32));
-          this.dodgeDir=th.type==='slash'?{side:rand(-.4,.4),fwd:-1}:{side:Math.random()<.5?-1:1,fwd:-.2};}
+        // lách: sidestep a narrow stab or overhead (a wide slash can't be sidestepped); more likely when low on stamina
+        const wantDodge=c.dodgeP>0&&th.type!=='slash'&&f.state!=='windup'&&f.st>=S.dodgeCost&&Math.random()<(f.st<35?c.dodgeP*2:c.dodgeP)*1.5;
+        if(wantDodge){this.dodgeAt=Math.max(now,th.impact-rand(.18,.26));this.dodgeDir={side:Math.random()<.5?-1:1,fwd:0};}
         else if(Math.random()<c.parryP){
           let ok=true;
           if(f.state==='windup'){const myImpact=now+(f.dur-f.t)+f.atk.rel/S.atkSpeed*IMPACT_P[f.atkType];ok=myImpact>th.impact-.05&&Math.random()<c.cancelP;}
@@ -76,8 +75,6 @@ function makeBrain(me){return{
     if(this.morphTo&&now>=this.morphTo.at){const m=this.morphTo;this.morphTo=null;if(f.state==='windup')morph(f,m.type);}
     // offence
     const pendingDef=this.parryAt!==null||this.counterAt!==null||this.dodgeAt!==null||(th&&!th.decided);
-    // hard bot closes distance with a forward dash
-    if(c.gapP>0&&f.state==='idle'&&!pendingDef&&dist>3.4&&dist<6&&f.st>50&&now>this.gapT){this.gapT=now+1.5;if(Math.random()<c.gapP)dodge(f,0,1);}
     const range=f.weapon.slash.range;
     if(f.state==='idle'&&!pendingDef&&now>=this.nextAttackAt&&dist<=range+.3&&f.st>18){
       let type=this.forceType||pick(c.mix);this.forceType=null;
