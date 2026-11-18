@@ -6,7 +6,8 @@ function buildWeapon(kind){
   const M=c=>new THREE.MeshLambertMaterial({color:c});
   const steel=M(0xcdd4dc),wood=M(0x5b3f25),gold=M(0xb8913a),darkSteel=M(0x8e979f);
   const b=(sx,sy,sz,m,x,y,z)=>{const me=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);me.position.set(x,y,z);me.castShadow=true;spin.add(me);return me;};
-  if(kind==='sword'){b(.05,.24,.05,wood,0,.02,0);b(.085,.07,.085,gold,0,-.12,0);b(.32,.05,.07,gold,0,.16,0);b(.075,.9,.025,steel,0,.64,0);b(.012,.86,.03,darkSteel,0,.62,0);b(.045,.08,.022,steel,0,1.12,0);}
+  if(kind==='sword'){b(.05,.4,.05,wood,0,-.06,0);b(.085,.07,.085,gold,0,-.29,0); // long grip: room for both hands
+    b(.32,.05,.07,gold,0,.16,0);b(.075,.9,.025,steel,0,.64,0);b(.012,.86,.03,darkSteel,0,.62,0);b(.045,.08,.022,steel,0,1.12,0);}
   else{b(.055,1.08,.055,wood,0,.36,0);b(.05,.2,.09,darkSteel,0,.8,-.06);b(.04,.34,.16,steel,0,.8,-.18);b(.03,.42,.05,steel,0,.8,-.28);b(.04,.08,.12,darkSteel,0,.82,.08);b(.07,.06,.07,darkSteel,0,-.17,0);}
   return {w,spin};
 }
@@ -64,12 +65,12 @@ function buildKnight(tab){
   const arm=()=>{const up=seg(K_DIM.armA,.19,steel),lo=seg(K_DIM.armB,.17,steel,dark);const hand=new THREE.Mesh(new THREE.BoxGeometry(.16,.16,.17),dark);hand.castShadow=true;g.add(hand);return{up,lo,hand,pa:0};};
   const armR=arm(),armL=arm();
   const pivot=new THREE.Group();pivot.rotation.order='YXZ';g.add(pivot);
-  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,weapon:null,twist:0,dodge:0,lh:1,nod:0,blinkAt:rand(2,4),blinkT:0,reachErr:0};
+  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,weapon:null,twist:0,dodge:0,nod:0,blinkAt:rand(2,4),blinkT:0,reachErr:0};
 }
 const Z=new THREE.Vector3(0,0,1),tmpV=new THREE.Vector3(),tmpV2=new THREE.Vector3();
 const _S=new THREE.Vector3(),_D=new THREE.Vector3(),_N=new THREE.Vector3(),_E=new THREE.Vector3(),_W=new THREE.Vector3(),_hR=new THREE.Vector3(),_hL=new THREE.Vector3(),_eul=new THREE.Euler(0,0,0,'YXZ'),Y_UP=new THREE.Vector3(0,1,0);
-// SH_FWD: shoulders roll forward for two-handed grips (set per frame in updateKnight)
-let SH_FWD=0;
+// shoulders sit rolled forward: both weapons are held two-handed in front of the chest
+const SH_FWD=.12;
 function shoulderAt(side,yaw,out){const x=side*K_DIM.shX,z=-SH_FWD,c=Math.cos(yaw),s=Math.sin(yaw);return out.set(x*c+z*s,K_DIM.torsoY+K_DIM.shY,-x*s+z*c);}
 function overReach(side,yaw,h){const d=shoulderAt(side,yaw,_S).distanceTo(h)-(K_DIM.armA+K_DIM.armB)*.95;return d>0?d:0;}
 function placeSeg(p,a,b,len){_D.copy(b).sub(a);const l=Math.max(.01,_D.length());p.position.copy(a);p.quaternion.setFromUnitVectors(Z,_D.divideScalar(l));p.scale.set(1,1,l/len);}
@@ -113,31 +114,21 @@ function solveArm(arm,side,yaw,h,dt){
   arm.hand.position.copy(_W);arm.hand.quaternion.copy(arm.lo.quaternion);
   return Math.max(0,_arm.dist-_arm.d);
 }
-const _free=new THREE.Vector3(),_twOrd=[];for(let y=-.6;y<=.9001;y+=.1)_twOrd.push({a:+y.toFixed(2),b:0});
+const _twOrd=[];for(let y=-.6;y<=.9001;y+=.1)_twOrd.push({a:+y.toFixed(2),b:0});
 function updateKnight(k,f,pz,dt){
   const pv=k.pivot;pv.rotation.set(pz.bpitch,pz.byaw,pz.roll);k.weapon.spin.rotation.y=pz.spin;
   _hR.set(pz.bx,pz.by,pz.bz);pv.position.copy(_hR);
-  const two=f.weapon.id==='axe'||f.state==='parry';
-  const grip=v=>v.set(0,-.18*1.15,0).applyEuler(_eul.set(pz.bpitch,pz.byaw,pz.roll,'YXZ')).add(_hR);
-  grip(_hL); // off-hand spot on the haft (also needed while letting go after a sword parry)
-  // torso twist: pick the yaw that lets the hand(s) reach their targets clear of the body, with a mild pull back to neutral
-  // (collision is part of the cost: twisting the chest out of the way is how a short chibi arm sweeps across it)
-  const twistFor=both=>{for(const o of _twOrd){const y=o.a;o.b=overReach(1,y,_hR)**2*30+(both?overReach(-1,y,_hL)**2*20:0)+y*y*.04+Math.abs(y-k.twist)*.01;}
-    _twOrd.sort((x,y)=>x.b-y.b);let best=0,bc=1e9;
-    let n=0;for(const o of _twOrd){if(o.b>=bc||++n>6)break;setBodyFrame(k.nod,o.a);const c=o.b+bestPole(k.armR,1,o.a,_hR).pen**2*200+(both?bestPole(k.armL,-1,o.a,_hL).pen**2*200:0);if(c<bc){bc=c;best=o.a;}}
-    return best;};
+  // both weapons are held in two hands: weapon hand at the pivot, off hand further down the grip/haft
+  _hL.set(0,-.18*1.15,0).applyEuler(_eul.set(pz.bpitch,pz.byaw,pz.roll,'YXZ')).add(_hR);
+  // torso twist: pick the yaw that lets both hands reach their targets clear of the body, with a mild pull back to neutral
+  // (collision is part of the cost: twisting the chest out of the way is how short chibi arms sweep across it)
+  for(const o of _twOrd){const y=o.a;o.b=overReach(1,y,_hR)**2*30+overReach(-1,y,_hL)**2*20+y*y*.04+Math.abs(y-k.twist)*.01;}
+  _twOrd.sort((x,y)=>x.b-y.b);let tgt=0,bc=1e9,n=0;
+  for(const o of _twOrd){if(o.b>=bc||++n>6)break;setBodyFrame(k.nod,o.a);const c=o.b+bestPole(k.armR,1,o.a,_hR).pen**2*200+bestPole(k.armL,-1,o.a,_hL).pen**2*200;if(c<bc){bc=c;tgt=o.a;}}
   k.nod=lerp(k.nod,f.state==='stun'?-.22:0,1-Math.exp(-12*dt));
-  k.pro=lerp(k.pro||0,two?.12:clamp((.15-_hR.x)*.25,0,.12),1-Math.exp(-14*dt));SH_FWD=k.pro; // also when the sword hand sweeps across
-  let tgt=twistFor(false),lhT=0;
-  if(two){tgt=twistFor(true);lhT=1;}
   k.twist=lerp(k.twist,tgt,1-Math.exp(-20*dt));const tw=k.twist;
   k.torso.rotation.y=tw;
   setBodyFrame(k.nod,tw);
-  // off hand: on the haft for two-handed holds (axe always, sword while parrying), hanging free otherwise
-  const bob=Math.sin(f.walk*4)*.04;_free.set(-.55,.52+bob,-.1).applyAxisAngle(Y_UP,tw);
-  k.lh=lerp(k.lh,lhT,1-Math.exp(-18*dt));
-  // blend between hanging and gripping on a path that bulges forward, so the hand doesn't cut through the belt
-  if(k.lh>.001){_T.copy(_hL);_hL.lerpVectors(_free,_T,k.lh);_hL.z-=k.lh*(1-k.lh)*1.4;}else _hL.copy(_free);
   k.reachErr=Math.max(solveArm(k.armR,1,tw,_hR,dt),solveArm(k.armL,-1,tw,_hL,dt));
   // last resort: the head leans back from any arm clipping that is left
   let left=0;for(const a of[k.armR,k.armL])for(const sg of[a.up,a.lo]){_S.copy(sg.position);_E.set(0,0,sg.userData.len*sg.scale.z).applyQuaternion(sg.quaternion).add(_S);left=Math.max(left,segPen(_S,_E,.09,true));}
@@ -163,11 +154,10 @@ const POSE={
   recoil:P(.52,-.05,-.4, -.6,.25,-.6,0,       .5,1.55,-.05),
   stun:  P(.3,-.7,-.45, .3,-.1,-.6,0,         .4,.8,-.3),
 };
-// the axe is held in both hands, so its hands sit closer to the body's centre line (only bot-space b* differ)
-const AXE_B={idle:[.12,1.0,-.55],slashW:[.42,1.14,-.38],slashE:[-.3,1.05,-.55],stabW:[.28,.95,-.45],stabE:[.05,1.12,-.8],
+// two-handed grips: bot-space hands sit in front of the chest so both arms reach without crossing the body
+const TWO_B={idle:[.12,1.0,-.55],slashW:[.42,1.14,-.38],slashE:[-.3,1.05,-.55],stabW:[.28,.95,-.45],stabE:[.05,1.12,-.8],
   overW:[.12,1.45,-.6],overE:[.05,.95,-.62],parry:[.05,1.3,-.55],recoil:[.3,1.35,-.4],stun:[.15,.85,-.5]};
-const POSE_AXE=Object.fromEntries(Object.entries(POSE).map(([k,p])=>[k,Object.assign({},p,AXE_B[k]?{bx:AXE_B[k][0],by:AXE_B[k][1],bz:AXE_B[k][2]}:{})]));
-const poseTab=f=>f.weapon&&f.weapon.id==='axe'?POSE_AXE:POSE;
+for(const k in TWO_B)[POSE[k].bx,POSE[k].by,POSE[k].bz]=TWO_B[k];
 const POSE_KEYS=['x','y','z','yaw','pitch','roll','spin','bx','by','bz','byaw','bpitch'];
 const W_OF={slash:'slashW',stab:'stabW',over:'overW'},E_OF={slash:'slashE',stab:'stabE',over:'overE'};
 // bot-space hand travels around the body's vertical axis (angle, distance and height interpolated separately).
@@ -182,7 +172,7 @@ function arcHand(cur,a,b,t){
   const th=lerp(ta,tb,t),y=lerp(a.by,b.by,t),r=Math.max(lerp(ra,rb,t),bodyClear(th,y));
   cur.bx=Math.sin(th)*r;cur.bz=-Math.cos(th)*r;cur.by=y;}
 function poseFor(f,dt){
-  const cur=f.pose,T=poseTab(f);let tgt,k;
+  const cur=f.pose,T=POSE;let tgt,k;
   switch(f.state){
     case'windup':tgt=T[W_OF[f.atkType]];k=f.riposte?30:26;break; // fast pose change so the attack type reads in the first ~100ms
     case'release':{const p=easeOut(clamp(f.t/f.dur,0,1));const a=T[W_OF[f.atkType]],b=T[E_OF[f.atkType]];for(const key of POSE_KEYS)cur[key]=lerp(a[key],b[key],p);arcHand(cur,a,b,p);return cur;}
