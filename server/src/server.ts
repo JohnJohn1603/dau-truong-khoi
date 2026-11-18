@@ -2,6 +2,7 @@
 // Mỗi phòng chạy một Sim (lõi chiến đấu dùng chung) 60 lần/giây và gửi ảnh chụp trạng thái 20 lần/giây.
 // Máy chủ quyết định mọi thứ; người chơi chỉ gửi thao tác. Thao tác phòng thủ được lùi thời điểm theo độ trễ (tối đa 150 ms),
 // và đòn trúng người chơi thật được xét muộn đúng chừng ấy để những thao tác đó kịp tính.
+import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Sim, WEAPONS, DEFAULT_TUNING, TICK, type Diff, type Fighter, type WeaponId } from '@dtk/shared';
 import { FIELDS, type ClientMsg, type ServerMsg, type RosterWire } from './protocol.ts';
@@ -124,10 +125,16 @@ function turnLimited(f: Fighter, yaw: number) {
   return f.yaw + Math.max(-cap, Math.min(cap, d));
 }
 
-const wss = new WebSocketServer({ port: PORT });
+// HTTP: trang kiểm tra sức khoẻ cho Fly.io (GET / → ok, kèm số phòng và người đang chơi); WebSocket dùng chung cổng
+const http = createServer((req, res) => {
+  const players = [...rooms.values()].reduce((n, r) => n + r.clients.length, 0);
+  res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
+  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players }));
+});
+const wss = new WebSocketServer({ server: http, maxPayload: 4096 });
 wss.on('connection', ws => {
   const c: Client = { ws, pid: nextPid++, name: 'Người chơi', weapon: 'sword', room: null, rtt: .08, fid: null, ack: 0 };
   ws.on('message', data => { let m: ClientMsg; try { m = JSON.parse(String(data)); } catch { return; } if (m && typeof m === 'object') onMsg(c, m); });
   ws.on('close', () => leave(c));
 });
-console.log(`Máy chủ Đấu Trường Khối chạy ở ws://localhost:${PORT}`);
+http.listen(PORT, '0.0.0.0', () => console.log(`Máy chủ Đấu Trường Khối chạy ở ws://localhost:${PORT}`));

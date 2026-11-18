@@ -6,8 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "artifact": "vite build && node scripts/artifact.mjs"
   },
-  "dependencies": { "@dtk/shared": "*", "three": "0.128.0" },
-  "devDependencies": { "vite": "5.4.11", "typescript": "5.6.3" }
+  "dependencies": {
+    "@dtk/shared": "*",
+    "three": "0.128.0"
+  },
+  "devDependencies": {
+    "vite": "5.4.11",
+    "typescript": "5.6.3"
+  }
 }

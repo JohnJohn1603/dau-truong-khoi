@@ -1,0 +1,73 @@
+# Mỗi lần push lên main:
+#  1. build trang game và đăng lên GitHub Pages (địa chỉ máy chủ gắn sẵn vào bản build)
+#  2. triển khai máy chủ phòng lên Fly.io (chỉ khi repo đã có secret FLY_API_TOKEN)
+name: Triển khai
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+env:
+  FLY_APP: dtk-arena-sin
+
+jobs:
+  check:
+    name: Kiểm tra lõi và máy chủ
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run sim
+
+  pages:
+    name: Trang game lên GitHub Pages
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_SERVER_URL: wss://${{ env.FLY_APP }}.fly.dev
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: client/dist }
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  server:
+    name: Máy chủ lên Fly.io (Singapore)
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Chưa có FLY_API_TOKEN thì bỏ qua
+        if: env.FLY_API_TOKEN == ''
+        run: echo "Chưa có secret FLY_API_TOKEN, bỏ qua bước triển khai máy chủ."
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+      - name: Tạo app nếu chưa có
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl apps create "$FLY_APP" --org personal || echo "app đã có"
+      - name: Triển khai
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only --ha=false --app "$FLY_APP"
