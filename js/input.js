@@ -1,11 +1,12 @@
 // Di chuyển, va chạm và điều khiển chuột/bàn phím
 'use strict';
 /* ---------------- movement / collision ---------------- */
-function speedMul(f){return{windup:.65,release:.6,parry:.7,stun:.35,recoil:.5,dead:0}[f.state]??1;}
+function speedMul(f){return{windup:.5,release:.4,parry:.7,stun:.35,recoil:.5,dead:0}[f.state]??1;}
 function moveFighter(f,wx,wz,speed,dt){
   const len=Math.hypot(wx,wz);if(len>1){wx/=len;wz/=len;}
-  const a=1-Math.exp(-12*dt);
-  f.vel.x=lerp(f.vel.x,wx*speed,a);f.vel.z=lerp(f.vel.z,wz*speed,a);
+  if(f.state==='dodge'){const d=Math.exp(-3*dt);f.vel.x*=d;f.vel.z*=d;} // keep the dash impulse, ignore steering
+  else{const a=1-Math.exp(-12*dt);
+  f.vel.x=lerp(f.vel.x,wx*speed,a);f.vel.z=lerp(f.vel.z,wz*speed,a);}
   f.pos.x+=f.vel.x*dt;f.pos.z+=f.vel.z*dt;
   const lim=HALF-f.radius-.05;f.pos.x=clamp(f.pos.x,-lim,lim);f.pos.z=clamp(f.pos.z,-lim,lim);
   for(const[x,z]of PILLARS){const nx=clamp(f.pos.x,x,x+1),nz=clamp(f.pos.z,z,z+1);const dx=f.pos.x-nx,dz=f.pos.z-nz,d=Math.hypot(dx,dz);
@@ -24,6 +25,7 @@ addEventListener('keydown',e=>{
   if(!inMatch()||paused){if(e.code==='Escape'&&paused&&lockFailed)resume();return;}
   if(e.code==='Escape'&&!locked){pause();return;}
   if(e.code==='KeyQ')feint(player);
+  if(e.code==='Space'){const f=(K.KeyW||K.ArrowUp?1:0)-(K.KeyS||K.ArrowDown?1:0),s=(K.KeyD?1:0)-(K.KeyA?1:0);dodge(player,s,f);}
   if(e.code==='KeyE')startAttack(player,'stab');
   if(e.code==='KeyR')startAttack(player,'over');
   if(e.code==='KeyF'&&!fkey){fkey=true;parryPress(player);}
