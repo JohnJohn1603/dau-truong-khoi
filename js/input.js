@@ -13,8 +13,9 @@ function moveFighter(f,wx,wz,speed,dt){
     if(d<f.radius){if(d<1e-4){f.pos.x+=f.radius;continue;}f.pos.x=nx+dx/d*f.radius;f.pos.z=nz+dz/d*f.radius;}}
   f.walk+=Math.hypot(f.vel.x,f.vel.z)*dt;
 }
-function separate(){const dx=bot.pos.x-player.pos.x,dz=bot.pos.z-player.pos.z,d=Math.hypot(dx,dz),m=.9;
-  if(d<m&&d>1e-4&&bot.state!=='dead'&&player.state!=='dead'){const p=(m-d)/2;bot.pos.x+=dx/d*p;bot.pos.z+=dz/d*p;player.pos.x-=dx/d*p;player.pos.z-=dz/d*p;}}
+function separate(){const m=.9;
+  for(let i=0;i<fighters.length;i++)for(let j=i+1;j<fighters.length;j++){const a=fighters[i],b=fighters[j];if(a.state==='dead'||b.state==='dead')continue;
+    const dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=Math.hypot(dx,dz);if(d<m&&d>1e-4){const p=(m-d)/2;b.pos.x+=dx/d*p;b.pos.z+=dz/d*p;a.pos.x-=dx/d*p;a.pos.z-=dz/d*p;}}}
 
 /* ---------------- input ---------------- */
 const K={};let mdx=0,mdy=0,camYaw=0,camPitch=0,locked=false,lockEverWorked=false,lockFailed=false,lastWheel=0,rmb=false,fkey=false,muted=false;

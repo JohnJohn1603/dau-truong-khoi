@@ -2,6 +2,36 @@
 'use strict';
 /* ---------------- render loop ---------------- */
 let last=performance.now(),fpsAcc=0,fpsN=0,fpsT=0;
+// The simulation runs in fixed steps of 1/60 s (the same rule a game server will run); rendering uses whatever time passed.
+const TICK=1/60;let acc=0;
+// Simulated ping: you see other fighters as they were (ping/2 + 50 ms interpolation) ago, while your own actions count when you press them,
+// which is how the planned netcode with lag compensation will feel. A history of every bot's state is kept per tick for this.
+const GHOST_KEYS=['state','t','dur','atkType','riposte','morphed','yaw','st','hp','walk','flash','deadT','killType','dodgeSide'];
+function recordHistory(){if(S.ping<=0)return;for(const b of bots){const h=b.hist||(b.hist=[]);const s={at:now,x:b.pos.x,z:b.pos.z,vx:b.vel.x,vz:b.vel.z};for(const k of GHOST_KEYS)s[k]=b[k];h.push(s);if(h.length>90)h.shift();}}
+function viewOf(b){
+  if(S.ping<=0||!inMatch()||!b.hist||!b.hist.length)return b;
+  const tgt=now-(S.ping/2+50)/1000;let s=b.hist[0];for(const x of b.hist){if(x.at<=tgt)s=x;else break;}
+  const g=b.ghost||(b.ghost={pos:new THREE.Vector3(),vel:new THREE.Vector3(),pose:Object.assign({},POSE.idle),weapon:b.weapon,isBot:true});
+  for(const k of GHOST_KEYS)g[k]=s[k];g.pos.set(s.x,0,s.z);g.vel.set(s.vx,0,s.vz);g.weapon=b.weapon;return g;}
+function simTick(dt){
+  now+=dt;
+  if(inMatch()){
+    updatePhase(dt);
+    if(player.state!=='dead')player.yaw=camYaw;
+    let mx=0,mz=0;const fz=-Math.sin(player.yaw),fzz=-Math.cos(player.yaw),rx=Math.cos(player.yaw),rz=-Math.sin(player.yaw);
+    let f=0,s=0;if(K.KeyW||K.ArrowUp)f++;if(K.KeyS||K.ArrowDown)f--;if(K.KeyD)s++;if(K.KeyA)s--;
+    if(phase==='countdown')f=s=0;
+    mx=fz*f+rx*s;mz=fzz*f+rz*s;
+    let sp=4.2*speedMul(player);
+    if((K.ShiftLeft||K.ShiftRight)&&f>0&&player.st>1&&player.state==='idle'){sp=6.4;spend(player,16*dt);}
+    moveFighter(player,mx,mz,sp,dt);
+    if(mode==='training'){const b=trainBot.update(dt);moveFighter(bot,b.mx,b.mz,3.4*speedMul(bot),dt);}
+    else for(const br of brains){const b=br.update(dt);moveFighter(br.f,b.mx,b.mz,BOT_CFG[CFG.diff].speed*speedMul(br.f),dt);}
+    for(const f of fighters)updateFighter(f,dt);
+    separate();recordHistory();
+  }else if(phase==='attract'){bot.yaw+=dt*.25;updateFighter(bot,dt);}
+  updateParts(dt);
+}
 bot.weapon=WEAPONS[CFG.bw==='axe'?'axe':'sword'];resetF(bot,0,0,Math.PI);setupKnight();setupViewmodel();
 function frame(t){requestAnimationFrame(frame);step(t);}
 function step(t){
@@ -16,30 +46,15 @@ function step(t){
   }
   mdx=mdy=0;
   if(dt>0){
-    now+=dt;
-    if(inMatch()){
-      updatePhase(dt);
-      if(player.state!=='dead')player.yaw=camYaw;
-      let mx=0,mz=0;const fz=-Math.sin(player.yaw),fzz=-Math.cos(player.yaw),rx=Math.cos(player.yaw),rz=-Math.sin(player.yaw);
-      let f=0,s=0;if(K.KeyW||K.ArrowUp)f++;if(K.KeyS||K.ArrowDown)f--;if(K.KeyD)s++;if(K.KeyA)s--;
-      if(phase==='countdown')f=s=0;
-      mx=fz*f+rx*s;mz=fzz*f+rz*s;
-      let sp=4.2*speedMul(player);
-      if((K.ShiftLeft||K.ShiftRight)&&f>0&&player.st>1&&player.state==='idle'){sp=6.4;spend(player,16*dt);}
-      moveFighter(player,mx,mz,sp,dt);
-      const b=mode==='training'?trainBot.update(dt):ai.update(dt);moveFighter(bot,b.mx,b.mz,(mode==='training'?3.4:BOT_CFG[CFG.diff].speed)*speedMul(bot),dt);
-      if(mode==='match'){fpsFrames++;fpsTime+=rdt;}
-      updateFighter(player,dt);updateFighter(bot,dt);separate();
-    }else if(phase==='attract'){bot.yaw+=dt*.25;updateFighter(bot,dt);}
-    updateParts(dt);
+    if(inMatch()&&mode==='match'){fpsFrames++;fpsTime+=rdt;}
+    acc+=dt;let n=0;while(acc>=TICK&&n<5){simTick(TICK);acc-=TICK;n++;}if(n>=5)acc=0;
   }
   // torches
   for(const tc of torches){tc.ph+=rdt*9;const fl=1+Math.sin(tc.ph)*.08+Math.sin(tc.ph*2.3)*.06;tc.l.intensity=1.1*fl;tc.f.scale.setScalar(fl);}
   // knight pose
-  if(knight){const g=knight.g;g.position.set(bot.pos.x,0,bot.pos.z);g.rotation.y=bot.yaw;
-    updateKnight(knight,bot,poseFor(bot,dt),dt);
-    const fl=bot.flash;for(const m of knight.mats)m.emissive.setRGB(fl*.6,fl*.08,fl*.05);
-  }
+  knights.forEach((k,i)=>{const b=bots[i];if(!b)return;const v=(phase==='attract')?b:viewOf(b);const g=k.g;g.position.set(v.pos.x,0,v.pos.z);g.rotation.y=v.yaw;
+    updateKnight(k,v,poseFor(v,dt),dt);
+    const fl=v.flash;for(const m of k.mats)m.emissive.setRGB(fl*.6,fl*.08,fl*.05);});
   // camera
   if(inMatch()||phase==='matchEnd'){
     shake=Math.max(0,shake-rdt*2.5);const sh=shake*shake*.35;
@@ -65,7 +80,7 @@ function step(t){
 }
 requestAnimationFrame(frame);
 // debug hook for automated checks: advance the simulation by n frames of 16ms
-window.__dtk={player,bot,ai,get phase(){return phase;},get stats(){return stats;},get score(){return score;},startAttack,parryPress,parryRelease,feint,dodge,S,CFG,
+window.__dtk={player,bot,get ai(){return ai;},get bots(){return bots;},get fighters(){return fighters;},get brains(){return brains;},get phase(){return phase;},get stats(){return stats;},get score(){return score;},startAttack,parryPress,parryRelease,feint,dodge,S,CFG,
   renderRes(docs){resDocs=docs;renderResults();},
   aim(){camYaw=Math.atan2(-(bot.pos.x-player.pos.x),-(bot.pos.z-player.pos.z));},
-  run(n){for(let i=0;i<n;i++){const t=performance.now();last=t-16;step(t);}}};
+  run(n){for(let i=0;i<n;i++){const t=performance.now();last=t-1000/60-.01;step(t);}}};

@@ -9,9 +9,9 @@ const angWrap=d=>{while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;ret
 const easeOut=t=>1-(1-t)*(1-t);
 
 /* ---------------- settings ---------------- */
-const DEF={parryWindow:200,counterWindow:250,dodgeCost:14,dodgeCD:.75,atkSpeed:1,dmgMul:1,stamRegen:22,botReact:1,hitstop:70,sens:1,volume:.6};
+const DEF={ping:0,parryWindow:200,counterWindow:250,dodgeCost:14,dodgeCD:.75,atkSpeed:1,dmgMul:1,stamRegen:22,botReact:1,hitstop:70,sens:1,volume:.6};
 const S=Object.assign({},DEF);
-const CFG={diff:'med',pw:'sword',bw:'rand',indicator:true,dblTap:true,tType:'rand',tSpeed:'slow',name:''};
+const CFG={gm:'duel',diff:'med',pw:'sword',bw:'rand',indicator:true,dblTap:true,tType:'rand',tSpeed:'slow',name:''};
 try{const s=JSON.parse(localStorage.getItem('dtk-settings')||'{}');Object.assign(S,s.S||{});Object.assign(CFG,s.CFG||{});}catch(e){}
 function save(){try{localStorage.setItem('dtk-settings',JSON.stringify({S,CFG}));}catch(e){}}
 
@@ -36,3 +36,5 @@ const BOT_CFG={
 };
 const BOT_NAMES={easy:'Lính Gác Rơm',med:'Hiệp Sĩ Xám',hard:'Kiếm Sư Đỏ'};
 const TABARD={easy:0x8a7a4a,med:0x4b5a78,hard:0x8e2222};
+// free-for-all opponents: name, short name for the score line, tabard colour
+const FFA_BOTS=[{name:'Hiệp Sĩ Xám',short:'Xám',tab:0x4b5a78},{name:'Kiếm Sư Đỏ',short:'Đỏ',tab:0x8e2222},{name:'Lính Gác Rơm',short:'Rơm',tab:0x8a7a4a}];

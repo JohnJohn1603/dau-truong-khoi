@@ -41,13 +41,29 @@ function popup(text,kind=''){const d=document.createElement('div');d.className='
 function dmgNum(f,v){const p=f.pos.clone();p.y=2.1;p.project(camera);if(p.z>1)return;const d=document.createElement('div');d.className='dmg';d.textContent=typeof v==='number'?'−'+v:v;d.style.left=((p.x+1)/2*innerWidth+rand(-20,20))+'px';d.style.top=((1-p.y)/2*innerHeight)+'px';$('hud').appendChild(d);setTimeout(()=>d.remove(),820);}
 function showHint(t,sec){const h=$('hint');h.textContent=t;h.hidden=false;hintT=sec;}
 const IND={slash:['→','Chém ngang · phản: chuột trái'],stab:['●','Đâm xiên · phản: cuộn xuống'],over:['↓','Đập thẳng · phản: cuộn lên']};
+// the enemy whose bars are shown: the one in front of you, else the nearest one still standing
+function focusEnemy(){if(bots.length===1)return bot;let best=null,bs=1e9;
+  for(const b of bots){if(b.state==='dead')continue;const {ang,dist}=relAngle(player,b.pos);const s=dist+(Math.abs(ang)<.6?0:6);if(s<bs){bs=s;best=b;}}
+  return best||bots[0];}
+let shownFocus=null;
 function updateHUD(dt){
   $('hpP').style.transform=`scaleX(${player.hp/100})`;$('stP').style.transform=`scaleX(${player.st/100})`;$('hpPt').textContent=Math.ceil(player.hp);
-  $('hpB').style.transform=`scaleX(${bot.hp/100})`;$('stB').style.transform=`scaleX(${bot.st/100})`;
-  $('stPw').classList.toggle('low',player.st<20);$('stBw').classList.toggle('low',bot.st<20);
-  $('score').textContent=`${score.p} – ${score.b}`;
+  const fe=focusEnemy();
+  if(bots.length>1&&fe!==shownFocus){shownFocus=fe;$('botName').textContent=fe.name+' · '+fe.weapon.name;}
+  $('hpB').style.transform=`scaleX(${fe.hp/100})`;$('stB').style.transform=`scaleX(${fe.st/100})`;
+  $('stPw').classList.toggle('low',player.st<20);$('stBw').classList.toggle('low',fe.st<20);
+  $('score').textContent=fighters.length>2?fighters.map(f=>`${f.short} ${f.wins||0}`).join(' · '):`${score.p} – ${score.b}`;
+  // incoming swings aimed at you (as you see them, i.e. with the simulated ping): the nearest one drives the indicator,
+  // and one from outside your view shows a side warning
+  let inc=null,id=1e9,side=null;
+  for(const b of bots){const v=viewOf(b);if(v.state!=='windup'||v.state==='dead')continue;const br=brainOf(b);if(br&&br.tg!==player&&bots.length>1)continue;
+    const {ang,dist}=relAngle(player,v.pos);if(dist>4)continue;
+    if(Math.abs(ang)>.9&&(!side||dist<side.dist))side={ang,dist};
+    if(dist<id){id=dist;inc=v;}}
   const ind=$('ind');
-  if(CFG.indicator&&bot.state==='windup'&&phase==='fight'){ind.hidden=false;const[g,l]=IND[bot.atkType];$('indG').textContent=g;$('indL').textContent=(bot.morphed?'Đổi sang · ':'')+l+(bot.riposte?' · phản đòn':'');$('indP').style.transform=`scaleX(${1-bot.t/bot.dur})`;}else ind.hidden=true;
+  if(CFG.indicator&&inc&&phase==='fight'){ind.hidden=false;const[g,l]=IND[inc.atkType];$('indG').textContent=g;$('indL').textContent=(inc.morphed?'Đổi sang · ':'')+l+(inc.riposte?' · phản đòn':'');$('indP').style.transform=`scaleX(${1-inc.t/inc.dur})`;}else ind.hidden=true;
+  const sw=$('sideWarn');
+  if(side&&phase==='fight'){sw.hidden=false;sw.textContent=Math.abs(side.ang)>2.3?'⬇ Đòn từ phía sau':(side.ang>0?'Đòn từ bên phải ➡':'⬅ Đòn từ bên trái');sw.dataset.dir=Math.abs(side.ang)>2.3?'back':(side.ang>0?'right':'left');}else sw.hidden=true;
   hurt=Math.max(0,hurt-dt*2.2);$('vign').style.opacity=player.state==='dead'?.85:hurt*.9+(player.hp<30?.25:0);
   if(hintT>0){hintT-=dt;if(hintT<=0)$('hint').hidden=true;}
   $('cross').style.opacity=player.state==='parry'?.25:.75;

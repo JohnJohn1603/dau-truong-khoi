@@ -3,8 +3,10 @@
 /* ---------------- time / phase ---------------- */
 let now=0,phase='attract',phaseT=0,paused=false,hitstop=0,shake=0,score={p:0,b:0},round=1,mode='match',matchStart=0,fpsFrames=0,fpsTime=0;
 let stats=null;
-const resetStats=()=>{stats={swings:0,hits:0,dmg:0,perfect:0,counters:0,blocks:0,broken:0,taken:0,feintBaits:0,morphs:0,morphBaits:0,botPerfect:0,botCounters:0,botMorphs:0,dodges:0,dodgeAvoids:0,botDodges:0,botDodgeAvoids:0};};
-const other=f=>f===player?bot:player;
+const resetStats=()=>{stats={swings:0,hits:0,dmg:0,perfect:0,counters:0,blocks:0,broken:0,taken:0,feintBaits:0,morphs:0,morphBaits:0,botPerfect:0,botCounters:0,botMorphs:0,dodges:0,dodgeAvoids:0,botDodges:0,botDodgeAvoids:0,kills:0};};
+// everyone in the arena: the player plus one bot (duel, training) or several (free-for-all)
+let bots=[bot],fighters=[player,bot];
+const near=(a,b)=>Math.hypot(a.pos.x-b.pos.x,a.pos.z-b.pos.z);
 
 function setState(f,s,dur){f.state=s;f.t=0;f.dur=dur||0;}
 function spend(f,a){f.st=Math.max(0,f.st-a);f.lastSpend=now;}
@@ -18,10 +20,11 @@ function startAttack(f,type){
   if(f.st<1){if(!f.isBot)popup('Hết thể lực','warn');return false;}
   if(f.state==='parry')f.lastParryRelease=now;
   const rip=now<f.riposteUntil;f.riposteUntil=0;
-  spend(f,a.cost);f.atkType=type;f.atk=a;f.riposte=rip;f.hitDone=false;f.atkStart=now;f.morphed=false;
+  spend(f,a.cost);f.atkType=type;f.atk=a;f.riposte=rip;f.hitDone=false;f.hitSet=[];f.atkStart=now;f.morphed=false;
   setState(f,'windup',a.wind/S.atkSpeed*(rip?.7:1)*(f.windMul||1));
   SFX.tell(type,f.isBot);
-  if(!f.isBot){stats.swings++;ai.onEnemyAttack({type,windEnd:now+f.dur,rel:a.rel/S.atkSpeed});}
+  if(f===player)stats.swings++;
+  notifyBrains('attack',f,{type,windEnd:now+f.dur,rel:a.rel/S.atkSpeed});
   return true;
 }
 // Đổi đòn giữa chừng: switch to another attack type during wind-up. Costs stamina, adds ~0.1s, once per swing.
@@ -29,15 +32,17 @@ function morph(f,type){
   if(f.state!=='windup'||f.morphed||f.t>f.dur-.06||f.st<1)return false;
   const a=f.weapon[type];spend(f,6);
   const rem=Math.max(.22,a.wind/S.atkSpeed*(f.windMul||1)-f.t)+.1;
-  f.atkType=type;f.atk=a;f.morphed=true;f.riposte=false;f.hitDone=false;f.atkStart=now;setState(f,'windup',rem);
+  f.atkType=type;f.atk=a;f.morphed=true;f.riposte=false;f.hitDone=false;f.hitSet=[];f.atkStart=now;setState(f,'windup',rem);
   SFX.tell(type,f.isBot);
-  if(!f.isBot){stats.morphs++;ai.onEnemyMorph({type,windEnd:now+rem,rel:a.rel/S.atkSpeed});}else stats.botMorphs++;
+  if(f===player)stats.morphs++;else stats.botMorphs++;
+  notifyBrains('morph',f,{type,windEnd:now+rem,rel:a.rel/S.atkSpeed});
   return true;
 }
 function feint(f){
   if(f.state!=='windup'||f.t>f.dur-.06)return false;
   spend(f,8);setState(f,'feint',.15);SFX.feint();
-  if(!f.isBot){const baited=(bot.state==='parry'&&bot.parryStart>=f.atkStart)||(bot.state==='windup'&&bot.atkStart>=f.atkStart);if(baited){stats.feintBaits++;popup('Nhử trúng','good');}ai.onEnemyFeint();}
+  if(f===player){const baited=fighters.some(o=>o!==f&&((o.state==='parry'&&o.parryStart>=f.atkStart)||(o.state==='windup'&&o.atkStart>=f.atkStart)));if(baited){stats.feintBaits++;popup('Nhử trúng','good');}}
+  notifyBrains('feint',f);
   return true;
 }
 function parryPress(f){
@@ -72,10 +77,16 @@ function dodge(f,side,fwd){
 }
 
 function updateFighter(f,dt){
-  const o=other(f);f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
+  f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
   switch(f.state){
     case'windup':if(f.t>=f.dur){setState(f,'release',f.atk.rel/S.atkSpeed);SFX.whoosh(f.atkType==='over'||f.weapon.id==='axe',f.isBot);}break;
-    case'release':{const p0=clamp((f.t-dt)/f.dur,0,1),p1=clamp(f.t/f.dur,0,1);if(!f.hitDone&&o.state!=='dead')hitCheck(f,o,p0,p1);if(f.state==='release'&&f.t>=f.dur){if(!f.hitDone&&(o.lastDodge||-9)>=f.atkStart-.05&&o.state!=='dead')dodgedOut(f,o);setState(f,'recovery',f.atk.rec/S.atkSpeed);}break;}
+    case'release':{const p0=clamp((f.t-dt)/f.dur,0,1),p1=clamp(f.t/f.dur,0,1);
+      // the blade sweeps everyone in reach; a slash may cut several people (each once), a stab or overhead stops at the first
+      for(const o of fighters){if(f.hitDone||f.state!=='release')break;if(o===f||o.state==='dead'||(f.hitSet||[]).includes(o))continue;hitCheck(f,o,p0,p1);}
+      if(f.state==='release'&&f.t>=f.dur){
+        if(!f.hitDone&&!(f.hitSet||[]).length){const o=fighters.find(o=>o!==f&&o.state!=='dead'&&(o.lastDodge||-9)>=f.atkStart-.05&&near(o,f)<f.atk.range+2);if(o)dodgedOut(f,o);}
+        setState(f,'recovery',f.atk.rec/S.atkSpeed);}
+      break;}
     case'recovery':case'feint':case'recoil':case'stun':case'dodge':if(f.t>=f.dur)setState(f,'idle');break;
     case'parry':if(now-f.parryStart>S.parryWindow/1000){f.st=Math.max(0,f.st-5*dt);}break;
     case'dead':f.deadT+=dt;break;
@@ -85,7 +96,7 @@ function updateFighter(f,dt){
 }
 // an attack ran out without touching anyone who dodged during it
 function dodgedOut(att,def){
-  if(!def.isBot){stats.dodgeAvoids++;if(mode!=='training')popup('Lách thoát','good');}else{stats.botDodgeAvoids++;popup('Bot lách thoát','info');}
+  if(def===player){stats.dodgeAvoids++;if(mode!=='training')popup('Lách thoát','good');}else if(att===player){stats.botDodgeAvoids++;popup('Bot lách thoát','info');}
   if(mode==='training'&&att===bot)trainResult(null,'Lách thoát','Lách tránh được đòn. Bài này tập phản đòn nên không tính.','info',att.atkType,null);
 }
 // a thrust or chop must meet the body itself, not the whole collision circle (tolerance ×0.7)
@@ -99,7 +110,8 @@ function hitCheck(att,def,p0,p1){
   if(hit)resolveHit(att,def);
 }
 function resolveHit(att,def){
-  att.hitDone=true;const a=att.atk,type=att.atkType;
+  (att.hitSet=att.hitSet||[]).push(def);att.hitDone=true;const a=att.atk,type=att.atkType;
+  const pInv=att===player||def===player; // only fights the player is part of show popups and count in the player's stats
   const front=Math.abs(relAngle(def,att.pos).ang)<80*Math.PI/180;
   const dmg=a.dmg*S.dmgMul;
   const tr=mode==='training'&&att===bot;
@@ -109,7 +121,7 @@ function resolveHit(att,def){
     setState(att,'recoil',.45);att.buffer=null;
     def.st=Math.min(100,def.st+def.atk.cost);def.riposte=true;def.hitDone=false;setState(def,'windup',def.atk.wind/S.atkSpeed*.45);
     SFX.clang(true);sparks(midpoint(att,def),22);hitstop=S.hitstop*1.4/1000;shake=Math.max(shake,.3);
-    if(!def.isBot){stats.counters++;popup('Phản đòn','good');}else{stats.botCounters++;popup('Bot phản đòn','bad');}
+    if(def===player){stats.counters++;popup('Phản đòn','good');}else if(att===player){stats.botCounters++;popup('Bot phản đòn','bad');}
     if(tr)trainResult(true,'Phản đòn đúng',`Bấm trước khi chạm ${early} ms`,'good',type,early);
     return;
   }
@@ -120,7 +132,7 @@ function resolveHit(att,def){
       // reduced reward (option b): free block, no fast riposte
       setState(att,'recovery',a.rec/S.atkSpeed);att.buffer=null;
       SFX.clang(false);sparks(midpoint(att,def),12);hitstop=S.hitstop/1000;shake=Math.max(shake,.15);
-      if(!def.isBot){stats.perfect++;popup('Đỡ chuẩn','good');}else{stats.botPerfect++;popup('Bot đỡ chuẩn','info');ai.onPerfectParry();}
+      if(def===player){stats.perfect++;popup('Đỡ chuẩn','good');}else{if(att===player){stats.botPerfect++;popup('Bot đỡ chuẩn','info');}const br=brainOf(def);if(br)br.onPerfectParry();}
       if(tr)trainResult(false,'Đỡ chuẩn bằng chuột phải',`Trước khi chạm ${pEarly} ms. Thử bấm nút ${KEY_OF[type]} để phản đòn.`,'info',type,null);
       return;
     }
@@ -133,7 +145,7 @@ function resolveHit(att,def){
       return;
     }
     def.st=0;setState(def,'stun',.8);damage(def,dmg*.5,att);SFX.breakG();
-    if(!def.isBot){stats.broken++;popup('Vỡ thế','bad');}else popup('Phá thế đỡ','good');
+    if(def===player){stats.broken++;popup('Vỡ thế','bad');}else if(att===player)popup('Phá thế đỡ','good');
     return;
   }
   if(tr){
@@ -142,11 +154,12 @@ function resolveHit(att,def){
     else if(def.state==='recovery'||def.state==='release')trainResult(false,'Đang hồi đòn','Bạn vừa vung đòn khác nên không kịp phản.','bad',type,null);
     else trainResult(false,'Chưa bấm kịp',`Bot ra ${ATK_NAME[type]}: bấm ${KEY_OF[type]} ngay trước khi chạm.`,'bad',type,null);
   }
-  if(att.morphed&&def.state==='windup'&&def.atkType!==type){if(att.isBot){popup('Bot đổi đòn lừa bạn','bad');}else{stats.morphBaits++;popup('Đổi đòn lừa trúng','good');}}
+  if(att.morphed&&def.state==='windup'&&def.atkType!==type){if(def===player){popup('Bot đổi đòn lừa bạn','bad');}else if(att===player){stats.morphBaits++;popup('Đổi đòn lừa trúng','good');}}
+  if(type==='slash')att.hitDone=false; // a clean slash keeps sweeping through other people
   damage(def,dmg,att);
   if(def.state==='dead')return;
-  if(def.state==='windup'){setState(def,'stun',.25);if(def.isBot)popup('Ngắt đòn','good');}
-  else if(type==='over'&&def.state!=='stun'){setState(def,'stun',a.stun);popup(def.isBot?'Choáng':'Bạn bị choáng',def.isBot?'good':'bad');}
+  if(def.state==='windup'){setState(def,'stun',.25);if(att===player)popup('Ngắt đòn','good');}
+  else if(type==='over'&&def.state!=='stun'){setState(def,'stun',a.stun);if(pInv)popup(def===player?'Bạn bị choáng':'Choáng',def===player?'bad':'good');}
 }
 function midpoint(a,b){const m=a.pos.clone().lerp(b.pos,.55);m.y=1.45;return m;}
 function dirFrom(a,b){return tmpV2.set(b.pos.x-a.pos.x,0,b.pos.z-a.pos.z).normalize();}
@@ -154,10 +167,17 @@ function damage(def,dmg,att){
   if(mode==='training'){def.flash=1;SFX.hit();blood(midpoint(att,def),8);hitstop=S.hitstop/1000;if(!def.isBot){hurt=.5;shake=Math.max(shake,.2);}else dmgNum(def,'trúng');return;}
   def.hp=Math.max(0,def.hp-dmg);def.flash=1;def.vel.addScaledVector(dirFrom(att,def),3);
   SFX.hit();blood(midpoint(att,def),14);hitstop=S.hitstop/1000;
-  if(def.isBot){stats.hits++;stats.dmg+=dmg;dmgNum(def,Math.round(dmg));shake=Math.max(shake,.1);}
-  else{stats.taken++;shake=Math.max(shake,.4);hurt=1;}
-  if(def.hp<=0){def.killType=att.atkType;kill(def);} // the finishing blow decides how the body falls
+  if(att===player){stats.hits++;stats.dmg+=dmg;dmgNum(def,Math.round(dmg));shake=Math.max(shake,.1);}
+  if(def===player){stats.taken++;shake=Math.max(shake,.4);hurt=1;}
+  const br=brainOf(def);if(br){br.aggro=att;br.aggroT=now;}
+  if(def.hp<=0){def.killType=att.atkType;if(att===player)stats.kills++;kill(def);} // the finishing blow decides how the body falls
 }
+// the round ends when at most one fighter is still standing; that one takes the round
 function kill(f){setState(f,'dead');f.deadT=0;SFX.boom();
-  if(f.isBot){score.p++;popup('Hạ gục','good');}else{score.b++;popup('Bạn đã ngã','bad');}
-  phase='roundEnd';phaseT=0;}
+  const ffa=fighters.length>2;
+  popup(f===player?'Bạn đã ngã':(ffa?`${f.name} đã ngã`:'Hạ gục'),f===player?'bad':(ffa?'info':'good'));
+  const alive=fighters.filter(o=>o.state!=='dead');
+  if(alive.length<=1){const w=alive[0]||null;if(w)w.wins=(w.wins||0)+1;syncScore();phase='roundEnd';phaseT=0;
+    if(ffa)setTimeout(()=>popup(w===player?'Bạn thắng hiệp':(w?`${w.name} thắng hiệp`:'Hoà'),w===player?'good':'bad'),350);}
+}
+function syncScore(){score.p=player.wins||0;score.b=Math.max(0,...bots.map(b=>b.wins||0));}
