@@ -1,16 +1,21 @@
 // Xưởng giáp: khung xem nhân vật 3D, nhấp chuột để hiệp sĩ ra đòn
-'use strict';
+import * as THREE from 'three';
+import { $, ATK_NAME, BOT_NAMES, CFG, S, TABARD, clamp, lerp } from './config.js';
+import { SFX, initAudio } from './effects.js';
+import { K_WPN, POSE, buildKnight, buildWeapon, poseFor, updateKnight } from './models.js';
+import { MATS } from './world.js';
+import { WEAPONS } from '@dtk/shared';
 /* ---------------- model viewer ----------------
    Own renderer + scene on a small canvas, so it never touches the arena or the match state.
    The knight here is driven by a tiny local state machine (idle → windup → release → recovery)
    using the real weapon timings, and posed with the same poseFor/updateKnight as in a match. */
-const PV={open:false,ready:false,w:'sword',skin:'med',speed:1,auto:true,yaw:.55,pitch:.12,dist:4.9,swayT:0,
+export const PV={open:false,ready:false,w:'sword',skin:'med',speed:1,auto:true,yaw:.55,pitch:.12,dist:4.9,swayT:0,
   renderer:null,scene:null,cam:null,k:null,f:null,last:0,raf:0,drag:null,lastWheel:0,idleT:0};
-const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng',dead:'Gục ngã'};
-const PV_DEATH={slash:'chém',stab:'đâm',over:'đập'};
-const PV_TARGET=new THREE.Vector3(0,1.0,0);
+export const PV_STATE={idle:'Thủ thế',windup:'Gồng đòn',release:'Vung',recovery:'Thu đòn',parry:'Đỡ',stun:'Choáng',dead:'Gục ngã'};
+export const PV_DEATH={slash:'chém',stab:'đâm',over:'đập'};
+export const PV_TARGET=new THREE.Vector3(0,1.0,0);
 
-function pvInit(){
+export function pvInit(){
   if(PV.ready)return;PV.ready=true;
   const cv=$('vCanvas');
   const r=new THREE.WebGLRenderer({canvas:cv,antialias:true});
@@ -30,10 +35,10 @@ function pvInit(){
   new ResizeObserver(pvResize).observe($('vStage'));pvResize();
   pvBindInput(cv);
 }
-function pvResize(){if(!PV.renderer)return;const st=$('vStage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;
+export function pvResize(){if(!PV.renderer)return;const st=$('vStage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;
   PV.renderer.setSize(w,h,false);PV.cam.aspect=w/h;PV.cam.updateProjectionMatrix();}
 
-function pvBuild(){
+export function pvBuild(){
   if(PV.k){PV.scene.remove(PV.k.g);PV.k.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
   const k=buildKnight(TABARD[PV.skin]);const wp=buildWeapon(PV.w);wp.w.scale.setScalar(K_WPN);k.pivot.add(wp.w);k.weapon=wp;
   PV.scene.add(k.g);PV.k=k;
@@ -45,32 +50,32 @@ function pvBuild(){
 }
 
 /* ---- tiny combat state machine (no opponent, no stamina) ---- */
-function pvSet(s,dur){const f=PV.f;f.state=s;f.t=0;f.dur=dur||0;pvLabel();}
-function pvAttack(type){const f=PV.f;initAudio();PV.idleT=0;if(f.state==='dead')return;
+export function pvSet(s,dur){const f=PV.f;f.state=s;f.t=0;f.dur=dur||0;pvLabel();}
+export function pvAttack(type){const f=PV.f;initAudio();PV.idleT=0;if(f.state==='dead')return;
   if(f.state!=='idle'&&f.state!=='parry'){f.buffer=type;return;}
   const a=f.weapon[type];f.atkType=type;f.atk=a;pvSet('windup',a.wind/S.atkSpeed);SFX.tell(type,true);}
-function pvParry(on){const f=PV.f;initAudio();PV.idleT=0;
+export function pvParry(on){const f=PV.f;initAudio();PV.idleT=0;
   if(on&&(f.state==='idle'||f.state==='recovery'))pvSet('parry');
   else if(!on&&f.state==='parry')pvSet('idle');}
-function pvStun(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;SFX.hit();pvSet('stun',.6);}
-function pvHit(){initAudio();PV.idleT=0;PV.f.flash=1;SFX.hit();}
+export function pvStun(){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;SFX.hit();pvSet('stun',.6);}
+export function pvHit(){initAudio();PV.idleT=0;PV.f.flash=1;SFX.hit();}
 // knight goes down, lies there a moment, then gets back up (viewer only)
-function pvDie(type){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;PV.f.deadT=0;PV.f.killType=type;SFX.boom();pvSet('dead',2.6);}
-function pvStep(dt){const f=PV.f;f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
+export function pvDie(type){initAudio();PV.idleT=0;PV.f.buffer=null;PV.f.flash=1;PV.f.deadT=0;PV.f.killType=type;SFX.boom();pvSet('dead',2.6);}
+export function pvStep(dt){const f=PV.f;f.t+=dt;f.flash=Math.max(0,f.flash-dt*4);
   if(f.state==='dead'){f.deadT+=dt;if(f.t>=f.dur){f.deadT=0;pvSet('idle');}return;}
   if(f.state==='windup'&&f.t>=f.dur){pvSet('release',f.atk.rel/S.atkSpeed);SFX.whoosh(f.atkType==='over'||f.weapon.id==='axe',false);}
   else if(f.state==='release'&&f.t>=f.dur)pvSet('recovery',f.atk.rec/S.atkSpeed);
   else if((f.state==='recovery'||f.state==='stun')&&f.t>=f.dur){pvSet('idle');if(f.buffer){const b=f.buffer;f.buffer=null;pvAttack(b);}}
   if(f.state!=='idle'&&f.state!=='parry'&&f.dur>0)$('vBar').style.transform=`scaleX(${clamp(f.t/f.dur,0,1)})`;
 }
-function pvLabel(){const f=PV.f;if(!f)return;const el=$('vState');
+export function pvLabel(){const f=PV.f;if(!f)return;const el=$('vState');
   const what=(f.state==='windup'||f.state==='release'||f.state==='recovery')?' · '+ATK_NAME[f.atkType]:f.state==='dead'?' do '+PV_DEATH[f.killType]:'';
   const t=f.dur>0?` · ${Math.round(f.dur*1000)} ms`:'';
   el.textContent=PV_STATE[f.state]+what+t;el.dataset.s=f.state;
   if(f.state==='idle'||f.state==='parry')$('vBar').style.transform='scaleX(0)';}
 
 /* ---- render loop (only while the viewer is open) ---- */
-function pvFrame(t){
+export function pvFrame(t){
   if(!PV.open)return;PV.raf=requestAnimationFrame(pvFrame);
   const rdt=Math.min(.05,(t-PV.last)/1000);PV.last=t;const dt=rdt*PV.speed;
   pvStep(dt);
@@ -84,7 +89,7 @@ function pvFrame(t){
 }
 
 /* ---- input: click = chém, cuộn lên/xuống = đập/đâm, giữ chuột phải = đỡ, kéo = xoay ---- */
-function pvBindInput(cv){
+export function pvBindInput(cv){
   cv.addEventListener('contextmenu',e=>e.preventDefault());
   cv.addEventListener('pointerdown',e=>{
     if(e.button===2){pvParry(true);e.preventDefault();return;}
@@ -117,14 +122,14 @@ function pvBindInput(cv){
     seg._sync=sync;});
   $('vAuto').onchange=e=>{PV.auto=e.target.checked;PV.idleT=0;};
 }
-function pvSyncOpts(){document.querySelectorAll('[data-pv-opt]').forEach(s=>s._sync&&s._sync());$('vAuto').checked=PV.auto;}
+export function pvSyncOpts(){document.querySelectorAll('[data-pv-opt]').forEach(s=>s._sync&&s._sync());$('vAuto').checked=PV.auto;}
 
-function pvOpen(){
+export function pvOpen(){
   PV.w=CFG.bw==='axe'?'axe':'sword';PV.skin=CFG.diff;
   $('menu').hidden=true;$('viewScr').hidden=false;
   pvInit();pvResize();pvBuild();pvSyncOpts();
   PV.open=true;PV.last=performance.now();PV.idleT=0;cancelAnimationFrame(PV.raf);PV.raf=requestAnimationFrame(pvFrame);
   $('vCanvas').focus({preventScroll:true});
 }
-function pvClose(){PV.open=false;cancelAnimationFrame(PV.raf);if(PV.f)pvParry(false);$('viewScr').hidden=true;$('menu').hidden=false;}
+export function pvClose(){PV.open=false;cancelAnimationFrame(PV.raf);if(PV.f)pvParry(false);$('viewScr').hidden=true;$('menu').hidden=false;}
 $('viewBtn').onclick=pvOpen;$('viewClose').onclick=pvClose;
