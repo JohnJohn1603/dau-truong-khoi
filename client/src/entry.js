@@ -7,6 +7,7 @@ import './models.js';
 import './effects.js';
 import './input.js';
 import './training.js';
+import './net.js';
 import './match.js';
 import './results.js';
 import './ui.js';

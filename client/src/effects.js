@@ -130,7 +130,7 @@ export function handleEvents(evts){
       case'roundStart':onRoundStart();break;
       case'countdown':{const cd=$('cd');cd.hidden=false;cd.textContent=e.n;SFX.tick();break;}
       case'fight':$('cd').hidden=true;SFX.bell();popup(`Hiệp ${e.round}`,'');break;
-      case'matchEnd':if(G.mode==='match')endMatch();break;
+      case'matchEnd':if(G.mode==='match'||G.mode==='net')endMatch();break;
     }
   }
 }

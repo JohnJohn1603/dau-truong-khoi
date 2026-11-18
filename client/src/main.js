@@ -1,5 +1,6 @@
 // Vòng lặp khung hình: chạy lõi chiến đấu theo bước cố định, rồi vẽ đấu trường, hiệp sĩ, góc nhìn thứ nhất và HUD.
-import { $, CFG, S, clamp, easeOut, lerp, rand } from './config.js';
+import { $, CFG, S, angWrap, clamp, easeOut, lerp, rand } from './config.js';
+import { INTERP, netNow, netTick } from './net.js';
 import { bot, bots, brains, committed, dodge, feint, fighters, inMatch, now, parryPress, parryRelease, phase, player, sim, startAttack, syncCore } from './core.js';
 import { handleEvents, updateHUD, updateParts } from './effects.js';
 import { readMove, turnKeys } from './input.js';
@@ -18,11 +19,19 @@ export let acc=0;
 export const GHOST_KEYS=['state','t','dur','atkType','riposte','morphed','yaw','st','hp','walk','flash','deadT','killType','dodgeSide'];
 export function recordHistory(){if(S.ping<=0)return;for(const b of bots){const h=b.hist||(b.hist=[]);const s={at:now,x:b.pos.x,z:b.pos.z,vx:b.vel.x,vz:b.vel.z};for(const k of GHOST_KEYS)s[k]=b[k];h.push(s);if(h.length>90)h.shift();}}
 export function viewOf(b){
-  if(S.ping<=0||!inMatch()||!b.hist||!b.hist.length)return b;
-  const tgt=now-(S.ping/2+50)/1000;let s=b.hist[0];for(const x of b.hist){if(x.at<=tgt)s=x;else break;}
+  const online=G.mode==='net';
+  if((!online&&S.ping<=0)||!inMatch()||!b.hist||!b.hist.length)return b;
+  // online: show others INTERP behind the server clock; offline: simulated ping
+  const tgt=online?netNow()-INTERP:now-(S.ping/2+50)/1000;
+  let i=0;while(i<b.hist.length-1&&b.hist[i+1].at<=tgt)i++;
+  const s=b.hist[i],n=b.hist[i+1];
   const g=b.ghost||(b.ghost={pos:{x:0,y:0,z:0},vel:{x:0,y:0,z:0},pose:null,weapon:b.weapon,isBot:true});
-  for(const k of GHOST_KEYS)g[k]=s[k];g.pos.x=s.x;g.pos.z=s.z;g.vel.x=s.vx;g.vel.z=s.vz;g.weapon=b.weapon;return g;}
+  for(const k of GHOST_KEYS)g[k]=s[k];g.pos.x=s.x;g.pos.z=s.z;g.vel.x=s.vx;g.vel.z=s.vz;g.weapon=b.weapon;
+  // between two snapshots: blend position and facing, and let the state timer run on
+  if(n&&tgt>s.at){const k=clamp((tgt-s.at)/(n.at-s.at),0,1);g.pos.x=lerp(s.x,n.x,k);g.pos.z=lerp(s.z,n.z,k);g.yaw=s.yaw+angWrap(n.yaw-s.yaw)*k;if(n.state===s.state)g.t=s.t+(tgt-s.at);}
+  return g;}
 export function simTick(){
+  if(G.mode==='net'){netTick(TICK);updateParts(TICK);return;}
   if(inMatch()&&player.state!=='dead')player.yaw=G.camYaw;
   player.input=readMove();
   if(phase==='attract')bot.yaw+=TICK*.25;

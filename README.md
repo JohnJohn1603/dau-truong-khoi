@@ -21,6 +21,7 @@ Các lệnh khác:
 | Lệnh | Việc |
 |---|---|
 | `npm run build` | Build client ra `client/dist/` (bản đưa lên claude.ai, sau này GitHub Pages) |
+| `npm run server` | Chạy máy chủ phòng chơi qua mạng ở `ws://localhost:8787` |
 | `npm run sim` | Chạy một trận đánh tự do 3 người trên Node.js, không cần trình duyệt, và kiểm tra tính tất định |
 | `npm run typecheck` | Kiểm tra kiểu TypeScript cho `shared/` và `server/` |
 
@@ -46,6 +47,20 @@ server/src/      Phần chạy trên Node.js; hiện có headless.ts để chạ
 Lõi chiến đấu không tự vẽ hay phát âm thanh. Nó chỉ báo ra **sự kiện** (`swing`, `hit`, `counter`, `perfect`, `dodge`, `roundEnd`…), và client quyết định hiển thị thế nào. Máy chủ ở bước 3 sẽ chạy đúng lõi này và gửi các sự kiện đó cho người chơi.
 
 Muốn chỉnh cân bằng thì sửa `WEAPONS` (thời gian vung, sát thương, tầm đánh, thể lực) và `BOT_CFG` (độ khó bot) trong `shared/src/data.ts`.
+
+## Chơi qua mạng (thử trên máy)
+
+1. Mở hai terminal trong thư mục dự án. Một bên chạy `npm run server`, bên kia chạy `npm run dev`.
+2. Mở http://localhost:5173 ở 2–3 cửa sổ trình duyệt, nhập tên khác nhau.
+3. Cửa sổ thứ nhất: **Chơi qua mạng**, rồi **Tạo phòng**, nhận mã 4 ký tự. Các cửa sổ khác nhập mã đó rồi bấm **Vào phòng**.
+4. Chủ phòng chọn độ khó bot rồi bấm **Bắt đầu**. Chỗ trống do bot đánh thay. Ai rời giữa trận thì bot điều khiển thay người đó.
+
+Muốn bạn bè ở máy khác vào được thì máy chủ phải đặt trên mạng (bước 4 của kế hoạch: Fly.io Singapore, trang game trên GitHub Pages). Link claude.ai không kết nối được tới máy chủ ngoài, nên ở đó chỉ chơi được với bot.
+
+Cách máy chủ giữ công bằng:
+- Máy chủ quyết định mọi thứ. Người chơi chỉ gửi thao tác.
+- Thao tác phòng thủ (đỡ, phản đòn, lách) được lùi thời điểm theo độ trễ của người bấm, tối đa 150 ms. Đòn trúng người chơi thật cũng được xét muộn đúng chừng ấy để những thao tác đó kịp tính.
+- Máy của bạn tự dự đoán chuyển động và đòn của chính bạn, nên thấy ngay, rồi khớp lại theo máy chủ. Người khác hiển thị chậm 100 ms, nội suy giữa các ảnh chụp trạng thái (20 lần/giây).
 
 ## Điều khiển
 
@@ -96,5 +111,5 @@ Các thông số chính (khoảng đỡ, khoảng phản đòn, tốc độ đò
 ## Trạng thái
 
 - Giai đoạn 1 (chiến đấu 1v1 với bot): đang chơi thử để xét cổng.
-- Giai đoạn 3a (phòng 3 người đánh tự do qua mạng): đã xong bước 1 (lõi cho N người, 60 Hz, giả lập ping) và bước 2 (Vite + TypeScript, `shared/` `client/` `server/`). Bước tiếp theo là máy chủ phòng 3 người trong `server/`.
+- Giai đoạn 3a (phòng 3 người đánh tự do qua mạng): đã xong bước 1 (lõi cho N người, 60 Hz, giả lập ping) và bước 2 (Vite + TypeScript, `shared/` `client/` `server/`). Bước 3 (máy chủ phòng 3 người, `server/src/server.ts`) đã chạy được trên máy. Bước tiếp theo là đưa lên mạng.
 - Client vẫn viết bằng JavaScript (module ES). Phần dùng chung với máy chủ đã là TypeScript; client sẽ chuyển dần sang TypeScript.

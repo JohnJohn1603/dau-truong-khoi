@@ -6,6 +6,7 @@ import { clearInput, pointerFree, requestLock } from './input.js';
 import { knights, setupKnight, setupViewmodel } from './models.js';
 import { esc, newId, persist, setSave, testerName } from './results.js';
 import { G } from './state.js';
+import { openNet, netLeaveMatch, net } from './net.js';
 import { endTraining, startTraining } from './training.js';
 import { mountTune } from './ui.js';
 import { canvas } from './world.js';
@@ -47,8 +48,8 @@ export function onRoundStart(){
 export function endMatch(){
   const st=G.stats;
   $('hud').hidden=true;if(document.pointerLockElement)document.exitPointerLock();
-  const ffa=fighters.length>2,win=(player.wins||0)>=3;syncScore();
-  $('endEyebrow').textContent=ffa?`Kết thúc trận · Đánh tự do 3 người · bot ${BOT_CFG[CFG.diff].name}`:`Kết thúc trận · ${BOT_CFG[CFG.diff].name} · ${player.weapon.name} đấu ${bot.weapon.name}`;
+  const ffa=fighters.length>2,win=(player.wins||0)>=3,online=G.mode==='net';syncScore();
+  $('endEyebrow').textContent=online?`Kết thúc trận · Phòng ${net.code} · qua mạng`:ffa?`Kết thúc trận · Đánh tự do 3 người · bot ${BOT_CFG[CFG.diff].name}`:`Kết thúc trận · ${BOT_CFG[CFG.diff].name} · ${player.weapon.name} đấu ${bot.weapon.name}`;
   $('endTitle').textContent=win?'Chiến thắng':'Thất bại';
   if(ffa)$('endSub').textContent='Số hiệp thắng: '+[...fighters].sort((a,b)=>(b.wins||0)-(a.wins||0)).map(f=>`${f.name} ${f.wins||0}`).join(' · ')+'.';
   else $('endSub').textContent=win?`Bạn hạ ${BOT_NAMES[CFG.diff]} với tỉ số ${G.score.p} – ${G.score.b}.`:`${BOT_NAMES[CFG.diff]} thắng ${G.score.b} – ${G.score.p}. Thử đỡ sớm hơn một chút, hoặc nhử đòn rồi đánh khi bot đang giữ đỡ.`;
@@ -56,13 +57,14 @@ export function endMatch(){
   const rows=[[st.hits+'/'+st.swings,'Đòn trúng / vung'],[acc+'%','Tỉ lệ trúng'],[Math.round(st.dmg),'Sát thương gây ra'],[st.counters,'Phản đòn khớp loại'],[st.perfect,'Đỡ chuẩn'],[st.blocks,'Đỡ thường'],[st.broken,'Bị vỡ thế'],[st.feintBaits,'Nhử trúng'],
     [st.morphs+' / '+st.morphBaits,'Đổi đòn / lừa trúng'],[st.dodges+' / '+st.dodgeAvoids,'Lách / lách thoát'],[st.taken,'Lần dính đòn'],[st.kills,'Hạ gục'],[st.botCounters+' / '+st.botPerfect,'Bot phản đòn / đỡ chuẩn']];
   $('endStats').innerHTML=rows.map(r=>`<div><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
-  const entry={id:newId(),kind:'match',gm:ffa?'ffa3':'duel',ping:S.ping,tester:testerName(),at:Date.now(),diff:CFG.diff,pw:player.weapon.id,bw:bot.weapon.id,sp:G.score.p,sb:G.score.b,win,
+  const entry={id:newId(),kind:'match',gm:online?'net3':ffa?'ffa3':'duel',ping:online?Math.round(net.rtt*1000):S.ping,tester:testerName(),at:Date.now(),diff:CFG.diff,pw:player.weapon.id,bw:bot.weapon.id,sp:G.score.p,sb:G.score.b,win,
     durS:Math.round(sim.now-G.matchStart),fps:G.fpsTime>0?Math.round(G.fpsFrames/G.fpsTime):null,again:null,note:''};
   for(const k of['swings','hits','counters','perfect','blocks','broken','feintBaits','morphs','morphBaits','dodges','dodgeAvoids','taken','botCounters','botPerfect','botMorphs','botDodges','botDodgeAvoids','kills'])entry[k]=st[k];
-  showEnd(entry,true);$('againBtn').textContent='Đấu lại';
+  showEnd(entry,true);$('againBtn').textContent=online?'Về phòng chờ':'Đấu lại';$('menuBtn').hidden=online;
+  if(online)G.mode='match';endIsNet=online;
   persist(entry);
 }
-export let endEntry=null,endIsMatch=true;
+export let endEntry=null,endIsMatch=true,endIsNet=false;
 export function showEnd(entry,isMatch){
   endEntry=entry;endIsMatch=isMatch;$('againQ').hidden=!isMatch;
   $('againYes').setAttribute('aria-pressed','false');$('againNo').setAttribute('aria-pressed','false');
@@ -76,8 +78,8 @@ export function toMenu(){
   mountTune('tuneHostMenu');if(document.pointerLockElement)document.exitPointerLock();sim.resetFighter(bot,0,0,Math.PI);setupKnight();
 }
 $('startBtn').onclick=startMatch;$('menuBtn').onclick=toMenu;$('resumeBtn').onclick=resume;
-$('againBtn').onclick=()=>{if(endIsMatch)startMatch();else startTraining();};
-$('quitBtn').onclick=()=>{if(G.mode==='training')endTraining();else toMenu();};
+$('againBtn').onclick=()=>{$('menuBtn').hidden=false;if(endIsNet){endIsNet=false;setPhase('attract');setRoster(1);bot.weapon=WEAPONS[CFG.bw==='axe'?'axe':'sword'];sim.resetFighter(bot,0,0,Math.PI);setupKnight();openNet();}else if(endIsMatch)startMatch();else startTraining();};
+$('quitBtn').onclick=()=>{if(G.mode==='training')endTraining();else{if(G.mode==='net')netLeaveMatch();toMenu();}};
 $('trainBtn').onclick=()=>{$('menu').hidden=true;$('trainScr').hidden=false;};
 $('trainBack').onclick=()=>{$('trainScr').hidden=true;$('menu').hidden=false;};
 $('trainStart').onclick=startTraining;

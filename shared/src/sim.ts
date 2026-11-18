@@ -83,7 +83,7 @@ export function relAngle(from: Fighter, p: Vec) {
   return { ang: Math.atan2(x, z), dist: Math.hypot(dx, dz), z };
 }
 export const committed = (f: Fighter) => f.state === 'release' || (f.state === 'windup' && f.t > f.dur * .6);
-const speedMul = (f: Fighter) => ({ windup: .5, release: .4, parry: .7, stun: .35, recoil: .5, dead: 0 } as Partial<Record<FState, number>>)[f.state] ?? 1;
+export const speedMul = (f: Fighter) => ({ windup: .5, release: .4, parry: .7, stun: .35, recoil: .5, dead: 0 } as Partial<Record<FState, number>>)[f.state] ?? 1;
 
 export class Sim {
   now = 0;
@@ -101,6 +101,10 @@ export class Sim {
   fighters: Fighter[];
   brains: Brain[] = [];
   controllers = new Map<Fighter, Controller>();
+  /** Bù độ trễ (giây) cho một người chơi thật: đòn trúng họ được xét muộn đúng chừng ấy, để thao tác đỡ / phản / lách
+   *  họ bấm khi nhìn thấy đòn (đã đến máy chủ trễ) vẫn được tính. 0 = xét ngay (chơi đơn, bot). */
+  graceFor: (f: Fighter) => number = () => 0;
+  private pending: { att: Fighter; def: Fighter; at: number; due: number; type: AtkType; atk: Attack }[] = [];
   private lastCd = -1;
 
   constructor(tune: Tuning = { ...DEFAULT_TUNING }, seed = 1) {
@@ -125,6 +129,32 @@ export class Sim {
     this.player.wins = 0;
     this.brains = this.bots.map(b => makeBrain(this, b));
     this.controllers.clear();
+    this.player.id = 0; this.player.isBot = false; this.bots.forEach((b, i) => { b.id = i + 1; b.isBot = true; });
+  }
+  /** Máy chủ: một trận gồm cả người thật lẫn bot, id theo thứ tự danh sách. */
+  setupRoom(entries: (RosterEntry & { human: boolean })[]) {
+    this.fighters = entries.map((e, i) => Object.assign(makeFighter(i, !e.human), { name: e.name, short: e.short, tab: e.tab, weapon: e.weapon }));
+    this.player = this.fighters.find(f => !f.isBot) || this.fighters[0];
+    this.bots = this.fighters.filter(f => f.isBot);
+    this.brains = this.bots.map(b => makeBrain(this, b));
+    this.controllers.clear(); this.pending = [];
+  }
+  /** Client chơi qua mạng: dựng lại danh sách người đấu theo máy chủ. `player` là người trên máy này, `bots` là mọi người khác.
+   *  Giữ nguyên các đối tượng cũ (player, bots[0]) để phần hiển thị không phải đổi tham chiếu. Không có bộ não: máy chủ quyết định. */
+  setupView(entries: (RosterEntry & { id: number })[], localId: number) {
+    const others = entries.filter(e => e.id !== localId), me = entries.find(e => e.id === localId)!;
+    while (this.bots.length < others.length) this.bots.push(makeFighter(100 + this.bots.length, true));
+    this.bots.length = others.length;
+    Object.assign(this.player, { id: localId, isBot: false, name: me.name, short: me.short, tab: me.tab, weapon: me.weapon, wins: 0 });
+    others.forEach((e, i) => Object.assign(this.bots[i], { id: e.id, isBot: true, name: e.name, short: e.short, tab: e.tab, weapon: e.weapon, wins: 0, windMul: 1 }));
+    this.fighters = [this.player, ...this.bots];
+    this.brains = []; this.controllers.clear(); this.pending = [];
+  }
+  /** Người chơi rời trận: bot điều khiển thay. */
+  toBot(f: Fighter) {
+    if (f.isBot) return;
+    f.isBot = true; f.input = { fwd: 0, side: 0, sprint: false };
+    this.bots.push(f); this.brains.push(makeBrain(this, f));
   }
 
   // ---------------------------------------------------------------- hiệp và trận
@@ -168,14 +198,7 @@ export class Sim {
     if (this.phase === 'attract' || this.phase === 'matchEnd') { for (const f of this.bots) this.updateFighter(f, dt); return; }
     this.updatePhase(dt);
     // người chơi thật: di chuyển theo input, nhìn theo yaw client gửi lên
-    for (const f of this.fighters) {
-      if (f.isBot) continue;
-      const fz = -Math.sin(f.yaw), fzz = -Math.cos(f.yaw), rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
-      let { fwd, side } = f.input; if (this.phase === 'countdown') fwd = side = 0;
-      let sp = 4.2 * speedMul(f);
-      if (f.input.sprint && fwd > 0 && f.st > 1 && f.state === 'idle') { sp = 6.4; this.spend(f, 16 * dt); }
-      this.move(f, fz * fwd + rx * side, fzz * fwd + rz * side, sp, dt);
-    }
+    for (const f of this.fighters) if (!f.isBot) this.moveHuman(f, dt);
     for (const b of this.bots) {
       const ctl = this.controllers.get(b);
       if (ctl) { const m = ctl.update(dt); this.move(b, m.mx, m.mz, m.speed * speedMul(b), dt); continue; }
@@ -183,9 +206,32 @@ export class Sim {
       const m = br.update(dt); this.move(b, m.mx, m.mz, BOT_CFG[this.diff].speed * speedMul(b), dt);
     }
     for (const f of this.fighters) this.updateFighter(f, dt);
+    this.resolvePending();
     this.separate();
   }
+  /** Xét các đòn trúng người chơi thật đã chờ đủ thời gian bù độ trễ. */
+  private resolvePending() {
+    if (!this.pending.length) return;
+    const due = this.pending.filter(p => this.now >= p.due); if (!due.length) return;
+    this.pending = this.pending.filter(p => this.now < p.due);
+    for (const p of due) {
+      if (p.att.state === 'dead' || p.def.state === 'dead' || this.phase !== 'fight') continue;
+      // đã lách (tính theo lúc bấm) trước khi đòn chạm → thoát
+      if (p.def.state === 'dodge' && p.def.lastDodge <= p.at + 1e-3) { this.emit({ k: 'dodgeOut', att: p.att.id, def: p.def.id, type: p.type }); continue; }
+      this.resolveHit(p.att, p.def, p.at, p.atk, p.type);
+    }
+  }
 
+  /** Di chuyển một người chơi thật theo f.input và f.yaw (dùng cả ở máy chủ lẫn khi client tự dự đoán). */
+  moveHuman(f: Fighter, dt: number) {
+    const fz = -Math.sin(f.yaw), fzz = -Math.cos(f.yaw), rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);
+    let { fwd, side } = f.input; if (this.phase === 'countdown' || this.phase === 'roundEnd' && f.state === 'dead') fwd = side = 0;
+    let sp = 4.2 * speedMul(f);
+    if (f.input.sprint && fwd > 0 && f.st > 1 && f.state === 'idle') { sp = 6.4; this.spend(f, 16 * dt); }
+    this.move(f, fz * fwd + rx * side, fzz * fwd + rz * side, sp, dt);
+  }
+  /** Client chơi qua mạng: chạy bộ đếm trạng thái của chính mình (vào đòn → ra đòn → hồi…) mà không xét trúng ai; máy chủ quyết định đòn trúng. */
+  predict(f: Fighter, dt: number) { this.updateFighter(f, dt, false); }
   move(f: Fighter, wx: number, wz: number, speed: number, dt: number) {
     const len = Math.hypot(wx, wz); if (len > 1) { wx /= len; wz /= len; }
     if (f.state === 'dodge') { const d = Math.exp(-3 * dt); f.vel.x *= d; f.vel.z *= d; } // giữ đà lướt, bỏ qua điều khiển
@@ -213,9 +259,10 @@ export class Sim {
   setState(f: Fighter, s: FState, dur = 0) { f.state = s; f.t = 0; f.dur = dur; }
   spend(f: Fighter, a: number) { f.st = Math.max(0, f.st - a); f.lastSpend = this.now; }
 
-  startAttack(f: Fighter, type: AtkType): boolean {
+  /** `back`: số giây lùi thời điểm bấm (bù độ trễ), chỉ ảnh hưởng việc xét phản đòn khớp loại. */
+  startAttack(f: Fighter, type: AtkType, back = 0): boolean {
     if (this.phase !== 'fight' || f.state === 'dead') return false;
-    if (f.state === 'windup') { if (type !== f.atkType && !f.morphed) return this.morph(f, type); return false; }
+    if (f.state === 'windup') { if (type !== f.atkType && !f.morphed) return this.morph(f, type, back); return false; }
     if (f.state !== 'idle' && f.state !== 'parry') {
       if (['recovery', 'recoil', 'feint', 'release', 'stun', 'dodge'].includes(f.state)) f.buffer = { type, t: this.now };
       return false;
@@ -225,18 +272,18 @@ export class Sim {
     if (f.state === 'parry') f.lastParryRelease = this.now;
     const rip = this.now < f.riposteUntil; f.riposteUntil = 0;
     this.spend(f, a.cost);
-    Object.assign(f, { atkType: type, atk: a, riposte: rip, hitDone: false, hitSet: [], atkStart: this.now, morphed: false });
+    Object.assign(f, { atkType: type, atk: a, riposte: rip, hitDone: false, hitSet: [], atkStart: this.now - back, morphed: false });
     this.setState(f, 'windup', a.wind / this.tune.atkSpeed * (rip ? .7 : 1) * f.windMul);
     this.emit({ k: 'swing', f: f.id, type });
     this.notifyBrains('attack', f, { type, windEnd: this.now + f.dur, rel: a.rel / this.tune.atkSpeed });
     return true;
   }
   /** Đổi đòn giữa chừng: tốn 6 thể lực, chậm thêm ~0,1 giây, mỗi đòn đổi một lần. */
-  morph(f: Fighter, type: AtkType): boolean {
+  morph(f: Fighter, type: AtkType, back = 0): boolean {
     if (f.state !== 'windup' || f.morphed || f.t > f.dur - .06 || f.st < 1) return false;
     const a = f.weapon[type]; this.spend(f, 6);
     const rem = Math.max(.22, a.wind / this.tune.atkSpeed * f.windMul - f.t) + .1;
-    Object.assign(f, { atkType: type, atk: a, morphed: true, riposte: false, hitDone: false, hitSet: [], atkStart: this.now });
+    Object.assign(f, { atkType: type, atk: a, morphed: true, riposte: false, hitDone: false, hitSet: [], atkStart: this.now - back });
     this.setState(f, 'windup', rem);
     this.emit({ k: 'morph', f: f.id, type });
     this.notifyBrains('morph', f, { type, windEnd: this.now + rem, rel: a.rel / this.tune.atkSpeed });
@@ -250,17 +297,17 @@ export class Sim {
     this.notifyBrains('feint', f);
     return true;
   }
-  parryPress(f: Fighter): boolean {
+  parryPress(f: Fighter, back = 0): boolean {
     if (f.state === 'dead' || f.state === 'stun' || f.state === 'release' || f.state === 'dodge' || (f.state === 'recoil' && f.t < .2) || f.state === 'parry') return false;
     if (this.phase !== 'fight' && this.phase !== 'countdown') return false;
     if (f.state === 'windup' && !this.feint(f)) return false;
     f.perfectOK = (this.now - f.lastParryRelease) > .35; // bấm đỡ liên tục thì mất khoảng đỡ chuẩn
-    f.buffer = null; this.setState(f, 'parry'); f.parryStart = this.now;
+    f.buffer = null; this.setState(f, 'parry'); f.parryStart = this.now - back;
     return true;
   }
   parryRelease(f: Fighter) { if (f.state === 'parry') { this.setState(f, 'idle'); f.lastParryRelease = this.now; } }
   /** Lách sang trái (side<0) hoặc phải (side>0). Không có lách lùi / tiến. Không bất tử: chỉ thoát khi ra khỏi tầm hoặc cung đòn. */
-  dodge(f: Fighter, side: number): boolean {
+  dodge(f: Fighter, side: number, back = 0): boolean {
     if (this.phase !== 'fight' || f.state === 'dead') return false;
     const ok = f.state === 'idle' || f.state === 'parry' || f.state === 'feint' || (f.state === 'recovery' && f.t > f.dur * .6);
     if (!ok || Math.abs(side) < .5) return false;
@@ -271,14 +318,14 @@ export class Sim {
     this.spend(f, this.tune.dodgeCost); f.buffer = null;
     const c = Math.cos(f.yaw), s = Math.sin(f.yaw), sp = 9.5;
     f.vel.x = c * side * sp; f.vel.z = -s * side * sp;
-    f.dodgeSide = side; f.lastDodge = this.now; f.dodgeReady = this.now + this.tune.dodgeCD;
+    f.dodgeSide = side; f.lastDodge = this.now - back; f.dodgeReady = this.now + this.tune.dodgeCD;
     this.setState(f, 'dodge', DODGE_T);
     this.emit({ k: 'dodge', f: f.id });
     return true;
   }
 
   // ---------------------------------------------------------------- cập nhật một người đấu
-  private updateFighter(f: Fighter, dt: number) {
+  private updateFighter(f: Fighter, dt: number, checkHits = true) {
     f.t += dt; f.flash = Math.max(0, f.flash - dt * 4);
     switch (f.state) {
       case 'windup':
@@ -288,12 +335,12 @@ export class Sim {
         const p0 = clamp((f.t - dt) / f.dur, 0, 1), p1 = clamp(f.t / f.dur, 0, 1);
         // lưỡi quét qua mọi người trong tầm: chém có thể trúng nhiều người (mỗi người một lần), đâm và đập dừng ở người đầu tiên
         for (const o of this.fighters) {
-          if (f.hitDone || f.state !== 'release') break;
+          if (!checkHits || f.hitDone || f.state !== 'release') break;
           if (o === f || o.state === 'dead' || f.hitSet.includes(o.id)) continue;
           this.hitCheck(f, o, p0, p1);
         }
         if (f.state === 'release' && f.t >= f.dur) {
-          if (!f.hitDone && !f.hitSet.length) {
+          if (checkHits && !f.hitDone && !f.hitSet.length) {
             const o = this.fighters.find(o => o !== f && o.state !== 'dead' && o.lastDodge >= f.atkStart - .05 && Math.hypot(o.pos.x - f.pos.x, o.pos.z - f.pos.z) < f.atk!.range + 2);
             this.emit(o ? { k: 'dodgeOut', att: f.id, def: o.id, type: f.atkType! } : { k: 'whiff', att: f.id, type: f.atkType! });
           }
@@ -324,34 +371,42 @@ export class Sim {
     if (att.atkType === 'slash') { const b0 = half - 2 * half * p0, b1 = half - 2 * half * p1; hit = ang <= b0 + tol && ang >= b1 - tol; }
     else if (att.atkType === 'stab') hit = p1 >= .3 && Math.abs(ang) <= half + tol;
     else hit = p1 >= .55 && Math.abs(ang) <= half + tol;
-    if (hit) this.resolveHit(att, def);
+    if (!hit) return;
+    const g = def.isBot ? 0 : this.graceFor(def);
+    if (g > 0) { // chờ thao tác của người bị đánh (có thể đã bấm nhưng chưa tới máy chủ)
+      att.hitSet.push(def.id); if (att.atkType !== 'slash') att.hitDone = true;
+      this.pending.push({ att, def, at: this.now, due: this.now + g, type: att.atkType!, atk: att.atk! });
+      return;
+    }
+    this.resolveHit(att, def, this.now, att.atk!, att.atkType!);
   }
 
-  private resolveHit(att: Fighter, def: Fighter) {
-    att.hitSet.push(def.id); att.hitDone = true;
-    const a = att.atk!, type = att.atkType!, now = this.now, T = this.tune;
+  /** tImp: thời điểm lưỡi chạm (bằng now, hoặc sớm hơn khi xét muộn để bù độ trễ). Mọi phép so thời gian dùng tImp. */
+  private resolveHit(att: Fighter, def: Fighter, tImp: number, a: Attack, type: AtkType) {
+    if (!att.hitSet.includes(def.id)) att.hitSet.push(def.id); att.hitDone = true;
+    const now = tImp, T = this.tune;
     const front = Math.abs(relAngle(def, att.pos).ang) < 80 * Math.PI / 180;
     const dmg = a.dmg * T.dmgMul;
     const early = Math.round((now - def.atkStart) * 1000);
     // Phản đòn khớp loại: người bị đánh vừa ra đúng loại đòn đó ngay trước khi chạm → gạt miễn phí, kẻ tấn công bị bật, đòn của mình thành đòn phản nhanh
-    if (def.state === 'windup' && def.atkType === type && front && (now - def.atkStart) * 1000 <= T.counterWindow) {
+    if (def.state === 'windup' && def.atkType === type && front && def.atkStart <= now + 1e-3 && (now - def.atkStart) * 1000 <= T.counterWindow) {
       this.setState(att, 'recoil', .45); att.buffer = null;
       def.st = Math.min(100, def.st + def.atk!.cost); def.riposte = true; def.hitDone = false; def.hitSet = [];
       this.setState(def, 'windup', def.atk!.wind / T.atkSpeed * .45);
       this.emit({ k: 'counter', att: att.id, def: def.id, type, early });
       return;
     }
-    if (def.state === 'parry' && front) {
+    if (def.state === 'parry' && front && def.parryStart <= now + 1e-3) {
       const pEarly = Math.round((now - def.parryStart) * 1000);
       if (def.perfectOK && pEarly <= T.parryWindow) { // đỡ chuẩn: không tốn thể lực, không có phản đòn nhanh
-        this.setState(att, 'recovery', a.rec / T.atkSpeed); att.buffer = null;
+        if (att.state === 'release' || att.state === 'recovery') this.setState(att, 'recovery', a.rec / T.atkSpeed); att.buffer = null;
         this.emit({ k: 'perfect', att: att.id, def: def.id, type, early: pEarly });
         this.brainOf(def)?.onPerfectParry();
         return;
       }
       const cost = dmg * .55 * (type === 'over' ? 1.6 : 1) * def.weapon.blockCost * att.weapon.drainMul;
       if (def.st >= cost) {
-        this.spend(def, cost); this.setState(att, 'recovery', a.rec / T.atkSpeed * .8);
+        this.spend(def, cost); if (att.state === 'release' || att.state === 'recovery') this.setState(att, 'recovery', a.rec / T.atkSpeed * .8);
         const d = this.dirFrom(att, def); def.vel.x += d.x * 2; def.vel.z += d.z * 2;
         this.emit({ k: 'block', att: att.id, def: def.id, type, early: pEarly });
         return;
@@ -363,12 +418,12 @@ export class Sim {
     }
     const defState = def.state, defAtkType = def.atkType;
     const morphBait = att.morphed && def.state === 'windup' && def.atkType !== type;
-    if (type === 'slash') att.hitDone = false; // một nhát chém gọn tiếp tục quét qua người khác
+    if (type === 'slash' && att.state === 'release' && att.atkType === 'slash') att.hitDone = false; // một nhát chém gọn tiếp tục quét qua người khác
     this.emit({ k: 'hit', att: att.id, def: def.id, type, dmg, defState, defAtkType, early, morphBait });
     this.damage(def, dmg, att);
     if (def.state === 'dead') return;
     if (def.state === 'windup') { this.setState(def, 'stun', .25); this.emit({ k: 'interrupt', att: att.id, def: def.id }); }
-    else if (type === 'over' && def.state !== 'stun') { this.setState(def, 'stun', a.stun!); this.emit({ k: 'stun', att: att.id, def: def.id }); }
+    else if (type === 'over' && def.state !== 'stun' && def.state !== 'dodge') { this.setState(def, 'stun', a.stun!); this.emit({ k: 'stun', att: att.id, def: def.id }); }
   }
   private dirFrom(a: Fighter, b: Fighter) { const x = b.pos.x - a.pos.x, z = b.pos.z - a.pos.z, l = Math.hypot(x, z) || 1; return { x: x / l, z: z / l }; }
   private damage(def: Fighter, dmg: number, att: Fighter) {
