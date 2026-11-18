@@ -38,7 +38,6 @@ function step(t){
   // knight pose
   if(knight){const g=knight.g;g.position.set(bot.pos.x,0,bot.pos.z);g.rotation.y=bot.yaw;
     updateKnight(knight,bot,poseFor(bot,dt),dt);
-    if(bot.state==='dead'){const k=Math.min(1,bot.deadT/.6);g.rotation.x=-easeOut(k)*Math.PI/2*.97;g.position.y=easeOut(k)*.15;}else g.rotation.x=0;
     const fl=bot.flash;for(const m of knight.mats)m.emissive.setRGB(fl*.6,fl*.08,fl*.05);
   }
   // camera

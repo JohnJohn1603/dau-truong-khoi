@@ -16,7 +16,7 @@ function buildWeapon(kind){
 // head (neck pivot, follows torso a little) → eyes; arms are 2-bone IK chains from the torso's shoulders to the hand target.
 // Every bone's plates are merged into one mesh per material, so the detail costs about the same draw calls as plain blocks.
 const K_WPN=.95; // knight's weapon scale (adult-sized longsword / axe)
-const K_DIM={hipY:.95,torsoY:.98,shX:.27,shY:.48,neckY:1.56,armA:.32,armB:.3};
+const K_DIM={hipY:.95,thigh:.44,shin:.51,torsoY:.98,shX:.27,shY:.48,neckY:1.56,armA:.32,armB:.3};
 // the player is the same knight: eyes sit at the helmet's visor slit
 const EYE_H=K_DIM.neckY+.19,EYE_Z=-.17;
 const shade=(h,k)=>{const c=hex2rgb(h).map(v=>clamp(Math.round(v*k),0,255));return(c[0]<<16)|(c[1]<<8)|c[2];};
@@ -64,12 +64,14 @@ function buildArm(M,parent,s){
 }
 function buildKnight(tab){
   const {M,sk,mats}=knightMats(tab);
-  const g=new THREE.Group();
-  // legs (pivot at hip): mail thigh, plate cuisse, knee cop with wings, greave with ridge, stepped sabaton
+  const g=new THREE.Group();g.rotation.order='YXZ'; // yaw first, then lean / fall in the knight's own frame
+  // legs: thigh (hip pivot: mail + plate cuisse) → shin (knee pivot: knee cop with wings, greave with ridge, stepped sabaton)
   const leg=x=>{const p=new THREE.Group();p.position.set(x,K_DIM.hipY,0);g.add(p);
-    sculpt(p,{mail:[[.19,.42,.21,0,-.2,0]],
-      steel:[[.2,.28,.06,0,-.17,-.095],[.18,.1,.06,0,-.44,-.115],[.17,.34,.19,0,-.64,0],[.13,.3,.04,0,-.63,-.105]],
-      dark:[[.23,.05,.05,0,-.44,-.11],[.19,.1,.27,0,-.9,-.03],[.17,.05,.07,0,-.92,-.18],[.18,.03,.2,0,-.82,0]]},M);return p;};
+    sculpt(p,{mail:[[.19,.42,.21,0,-.2,0]],steel:[[.2,.28,.06,0,-.17,-.095]]},M);
+    const sh=new THREE.Group();sh.position.y=-K_DIM.thigh;p.add(sh);
+    sculpt(sh,{steel:[[.18,.1,.06,0,0,-.115],[.17,.34,.19,0,-.2,0],[.13,.3,.04,0,-.19,-.105]],
+      dark:[[.23,.05,.05,0,0,-.11],[.19,.1,.27,0,-.46,-.03],[.17,.05,.07,0,-.48,-.18],[.18,.03,.2,0,-.38,0]]},M);
+    p.userData.shin=sh;return p;};
   const legL=leg(-.12),legR=leg(.12);
   // torso (pivot at the waist)
   const torso=new THREE.Group();torso.position.set(0,K_DIM.torsoY,0);g.add(torso);
@@ -105,7 +107,7 @@ function buildKnight(tab){
   // collision volumes (local to head / torso) used by the arm IK and by the clipping tests
   const colBoxes=[{obj:head,min:new THREE.Vector3(-.14,-.01,-.165),max:new THREE.Vector3(.14,.34,.15)},
     {obj:torso,min:new THREE.Vector3(-.2,-.17,-.15),max:new THREE.Vector3(.2,.47,.15)}];
-  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,colBoxes,weapon:null,twist:0,dodge:0,nod:0,blinkAt:rand(2,4),blinkT:0,reachErr:0};
+  return {g,legL,legR,torso,head,armR,armL,pivot,mats,eyes,xMarks,colBoxes,weapon:null,twist:0,dodge:0,nod:0,bt:rand(0,6),hit:0,hitSide:1,lastFlash:0,fallSide:1,blinkAt:rand(2,4),blinkT:0,reachErr:0};
 }
 const Z=new THREE.Vector3(0,0,1),tmpV=new THREE.Vector3(),tmpV2=new THREE.Vector3();
 const _S=new THREE.Vector3(),_D=new THREE.Vector3(),_N=new THREE.Vector3(),_E=new THREE.Vector3(),_W=new THREE.Vector3(),_hR=new THREE.Vector3(),_hL=new THREE.Vector3(),_eul=new THREE.Euler(0,0,0,'YXZ'),Y_UP=new THREE.Vector3(0,1,0);
@@ -165,8 +167,14 @@ function solveArm(arm,side,yaw,h,dt){
 }
 const _twOrd=[];for(let y=-.6;y<=.9001;y+=.1)_twOrd.push({a:+y.toFixed(2),b:0});
 function updateKnight(k,f,pz,dt){
+  const dead=f.state==='dead',spd=Math.hypot(f.vel.x,f.vel.z),walkA=dead?0:Math.min(1,spd/2);
+  // breathing: slow chest rise, deeper when out of stamina, damped while walking
+  k.bt+=dt*1.9;const br=dead?0:Math.sin(k.bt)*(1+(1-(f.st??100)/100)*1.4)*(1-walkA*.7);
+  // hit flinch: a new red flash means a fresh hit → short kick that decays
+  if(f.flash>k.lastFlash+.3){k.hit=1;k.hitSide=Math.random()<.5?-1:1;}k.lastFlash=f.flash;k.hit=Math.max(0,k.hit-dt*4.5);
+  const hk=k.hit*k.hit*(3-2*k.hit); // smooth kick shape
   const pv=k.pivot;pv.rotation.set(pz.bpitch,pz.byaw,pz.roll);k.weapon.spin.rotation.y=pz.spin;
-  _hR.set(pz.bx,pz.by,pz.bz);pv.position.copy(_hR);
+  _hR.set(pz.bx,pz.by+br*.008-hk*.05,pz.bz+hk*.06);pv.position.copy(_hR);
   // both weapons are held in two hands: weapon hand at the pivot, off hand further down the grip/haft
   _hL.set(0,-.18*K_WPN,0).applyEuler(_eul.set(pz.bpitch,pz.byaw,pz.roll,'YXZ')).add(_hR);
   // torso twist: pick the yaw that lets both hands reach their targets clear of the body, with a mild pull back to neutral
@@ -175,18 +183,35 @@ function updateKnight(k,f,pz,dt){
   _twOrd.sort((x,y)=>x.b-y.b);let tgt=0,bc=1e9,n=0;
   for(const o of _twOrd){if(o.b>=bc||++n>6)break;setBodyFrame(k.nod,o.a);const c=o.b+bestPole(k.armR,1,o.a,_hR).pen**2*200+bestPole(k.armL,-1,o.a,_hL).pen**2*200;if(c<bc){bc=c;tgt=o.a;}}
   k.nod=lerp(k.nod,f.state==='stun'?-.22:0,1-Math.exp(-12*dt));
-  k.twist=lerp(k.twist,tgt,1-Math.exp(-20*dt));const tw=k.twist;
-  k.torso.rotation.y=tw;
+  k.twist=lerp(k.twist,tgt,1-Math.exp(-20*dt));const tw=k.twist+k.hitSide*hk*.12; // hit kick twists the chest without feeding back into k.twist
+  k.torso.rotation.y=tw;k.torso.position.y=K_DIM.torsoY+br*.006;k.torso.scale.set(1+br*.012,1,1+br*.018);
   setBodyFrame(k.nod,tw);
   k.reachErr=Math.max(solveArm(k.armR,1,tw,_hR,dt),solveArm(k.armL,-1,tw,_hL,dt));
   // last resort: the head leans back from any arm clipping that is left
   let left=0;for(const a of[k.armR,k.armL])for(const sg of[a.up,a.lo]){_S.copy(sg.position);_E.set(0,0,sg.userData.len*sg.scale.z).applyQuaternion(sg.quaternion).add(_S);left=Math.max(left,segPen(_S,_E,.09,true));}
   k.dodge=lerp(k.dodge,Math.min(.14,left*1.6),1-Math.exp(-25*dt));
-  k.head.position.set(0,K_DIM.neckY-k.dodge*.3,k.dodge*.9);k.head.rotation.set(k.nod+k.dodge*1.6,tw*.3,0);
-  const sw=Math.sin(f.walk*4.2)*.55*Math.min(1,Math.hypot(f.vel.x,f.vel.z)/2);k.legL.rotation.x=sw;k.legR.rotation.x=-sw;
+  // head: dodge lean, breathing, snaps back on a hit
+  k.head.position.set(0,K_DIM.neckY-k.dodge*.3+br*.008,k.dodge*.9);k.head.rotation.set(k.nod+k.dodge*1.6+hk*.35,tw*.3+k.hitSide*hk*.25,k.hitSide*hk*.12);
+  // legs: walk cycle with knee bend (swing leg folds, stance leg nearly straight); gait runs backwards when backing off
+  const fwd=-(f.vel.x*Math.sin(f.yaw??0)+f.vel.z*Math.cos(f.yaw??0)),ph=f.walk*4.2*(fwd<-.2?-1:1);
+  const sp=Math.sin(ph),cp=Math.cos(ph);
+  let thL=sp*.5*walkA,thR=-sp*.5*walkA,knL=-(Math.max(0,cp)*.95+.08)*walkA,knR=-(Math.max(0,-cp)*.95+.08)*walkA;
+  let lean=hk*.1,roll=0,y=-Math.abs(sp)*.025*walkA-hk*.02;
+  if(dead){
+    // death: knees buckle and the hips drop, then the body topples forward with a slight twist and a small bounce
+    const t=f.deadT??0,kn=easeOut(clamp(t/.32,0,1)),fl=clamp((t-.22)/.5,0,1),fall=fl*fl;
+    const bt=(t-.72)/.25,bounce=bt>0&&bt<1?Math.sin(bt*Math.PI)*.06*(1-bt):0;
+    if(t<.05)k.fallSide=Math.random()<.5?-1:1;
+    thL=thR=.95*kn*(1-fall*.8);knL=knR=-1.75*kn*(1-fall*.75); // legs straighten out as the body hits the ground
+    const hip=K_DIM.thigh*Math.cos(.95*kn)+K_DIM.shin*Math.cos(.8*kn); // hip height while kneeling
+    lean=-(1.38-bounce)*fall;roll=k.fallSide*.22*fall;y=(hip-K_DIM.hipY)*(1-fall)+.08*fall;
+    k.head.rotation.x-=.45*kn;k.head.rotation.z+=k.fallSide*.3*fall;
+  }
+  k.legL.rotation.x=thL;k.legR.rotation.x=thR;k.legL.userData.shin.rotation.x=knL;k.legR.userData.shin.rotation.x=knR;
+  k.g.rotation.x=lean;k.g.rotation.z=roll;k.g.position.y=y;
   // eyes: blink every few seconds, squint when stunned, ✕ when dead
   k.blinkAt-=dt;if(k.blinkAt<=0){k.blinkT=.13;k.blinkAt=rand(2.2,4.5);}k.blinkT=Math.max(0,k.blinkT-dt);
-  const dead=f.state==='dead',ey=f.state==='stun'?.3:k.blinkT>0?.15:1;
+  const ey=f.state==='stun'?.3:k.blinkT>0?.15:1;
   for(const e of k.eyes){e.visible=!dead;e.scale.y=ey;}for(const x of k.xMarks)x.visible=dead;
 }
 /* ---------------- poses (camera-space hand + rotation for the first-person view; b* = bot-space hand) ----------------
