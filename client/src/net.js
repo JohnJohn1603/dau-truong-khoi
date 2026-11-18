@@ -19,7 +19,8 @@ const OWN_PREDICTED = new Set(['swing', 'morph', 'dodge', 'feint', 'noStamina', 
 
 export const net = { ws: null, code: null, you: null, pid: null, host: false, rtt: .08, seq: 0, ack: 0, lastSnap: null, srvNow: 0, recvAt: 0, inTick: 0, pingT: null, diff: 'med', players: [] };
 
-const defaultUrl = () => CFG.netUrl || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? `ws://${location.hostname}:8787` : '');
+// local dev → the server on this machine; the published page → the address baked in at build time (VITE_SERVER_URL)
+const defaultUrl = () => CFG.netUrl || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? `ws://${location.hostname}:8787` : (import.meta.env.VITE_SERVER_URL || ''));
 const status = (msg, kind = '') => { const el = $('netStatus'); el.textContent = msg; el.className = 'savest' + (kind ? ' ' + kind : ''); };
 function sendMsg(m) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); }
 
