@@ -37,13 +37,7 @@ function step(t){
   for(const tc of torches){tc.ph+=rdt*9;const fl=1+Math.sin(tc.ph)*.08+Math.sin(tc.ph*2.3)*.06;tc.l.intensity=1.1*fl;tc.f.scale.setScalar(fl);}
   // knight pose
   if(knight){const g=knight.g;g.position.set(bot.pos.x,0,bot.pos.z);g.rotation.y=bot.yaw;
-    const pz=poseFor(bot,dt);const pv=knight.pivot;pv.position.set(pz.bx,pz.by,pz.bz);pv.rotation.set(pz.bpitch,pz.byaw,pz.roll);knight.weapon.spin.rotation.y=pz.spin;
-    const sR=tmpV.set(.42,1.4,0).clone();placeArm(knight.armR,sR,pv.position);
-    const two=bot.weapon.id==='axe'||bot.state==='parry';
-    let hL;if(two){hL=new THREE.Vector3(0,-.18*1.15,0).applyEuler(pv.rotation).add(pv.position);}else{hL=new THREE.Vector3(-.5,.85+Math.sin(bot.walk*4)*.04,-.12);}
-    placeArm(knight.armL,new THREE.Vector3(-.42,1.4,0),hL);
-    const sw=Math.sin(bot.walk*4.2)*.5*Math.min(1,Math.hypot(bot.vel.x,bot.vel.z)/2);knight.legL.rotation.x=sw;knight.legR.rotation.x=-sw;
-    knight.head.rotation.x=bot.state==='stun'?.3:0;
+    updateKnight(knight,bot,poseFor(bot,dt),dt);
     if(bot.state==='dead'){const k=Math.min(1,bot.deadT/.6);g.rotation.x=-easeOut(k)*Math.PI/2*.97;g.position.y=easeOut(k)*.15;}else g.rotation.x=0;
     const fl=bot.flash;for(const m of knight.mats)m.emissive.setRGB(fl*.6,fl*.08,fl*.05);
   }

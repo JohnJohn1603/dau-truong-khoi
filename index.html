@@ -53,7 +53,7 @@
       <label class="chk"><input type="checkbox" id="optInd"> Hiện chỉ báo đòn của bot (cho người mới)</label>
       <div class="opt"><label class="lbl" for="testerName">Tên của bạn (ghi kèm kết quả gửi cho người làm game)</label><input class="txt" id="testerName" maxlength="32" placeholder="Ví dụ: Minh" autocomplete="nickname"></div>
     </div>
-    <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
+    <div class="row"><button class="cta" id="startBtn" type="button">Vào trận</button><button class="ghost" id="trainBtn" type="button">Phòng tập phản đòn</button><button class="ghost" id="viewBtn" type="button">Xem nhân vật</button><button class="ghost" id="resBtn" type="button" hidden>Kết quả tester</button><span class="warnbox" id="touchWarn" hidden>Bản thử này cần chuột và bàn phím.</span></div>
     <ul class="keys">
       <li><span><kbd>Chuột trái</kbd></span><span>Chém ngang</span></li>
       <li><span><kbd>Cuộn lên</kbd> / <kbd>R</kbd></span><span>Đập thẳng</span></li>
@@ -97,6 +97,33 @@
   </div>
 </div>
 
+<div class="overlay" id="viewScr" hidden>
+  <div class="panel wide">
+    <header><p class="eyebrow">Xưởng giáp</p><h2>Xem nhân vật</h2>
+      <p class="lede">Nhấp vào khung để hiệp sĩ ra đòn, dùng đúng phím như trong trận. Kéo chuột để xoay quanh.</p></header>
+    <div class="viewer">
+      <div class="stage" id="vStage">
+        <canvas id="vCanvas" tabindex="0" aria-label="Hiệp sĩ 3D, nhấp để ra đòn"></canvas>
+        <div class="vtag"><b id="vName">Hiệp Sĩ Xám</b><span id="vWpn">Kiếm</span></div>
+        <div class="vstate"><span id="vState" data-s="idle">Thủ thế</span><div class="pb"><i id="vBar"></i></div></div>
+        <ul class="vhelp"><li><kbd>Nhấp trái</kbd> chém</li><li><kbd>Cuộn xuống</kbd> đâm</li><li><kbd>Cuộn lên</kbd> đập</li><li><kbd>Giữ phải</kbd> đỡ</li><li><kbd>Kéo</kbd> xoay</li></ul>
+      </div>
+      <div class="vside">
+        <div class="opt"><span class="lbl">Ra đòn</span>
+          <div class="vacts"><button class="ghost" type="button" data-pv-act="slash">Chém</button><button class="ghost" type="button" data-pv-act="stab">Đâm</button><button class="ghost" type="button" data-pv-act="over">Đập</button><button class="ghost" type="button" data-pv-act="parry">Đỡ (giữ)</button><button class="ghost" type="button" data-pv-act="stun">Bị choáng</button></div></div>
+        <div class="opt"><span class="lbl">Vũ khí</span>
+          <div class="seg" data-pv-opt="w"><button type="button" data-v="sword">Kiếm</button><button type="button" data-v="axe">Rìu</button></div></div>
+        <div class="opt"><span class="lbl">Giáp</span>
+          <div class="seg" data-pv-opt="skin"><button type="button" data-v="easy">Lính Gác Rơm</button><button type="button" data-v="med">Hiệp Sĩ Xám</button><button type="button" data-v="hard">Kiếm Sư Đỏ</button></div></div>
+        <div class="opt"><span class="lbl">Tốc độ xem</span>
+          <div class="seg" data-pv-opt="speed"><button type="button" data-v="1">1×</button><button type="button" data-v="0.5">½×</button><button type="button" data-v="0.25">¼×</button></div></div>
+        <label class="chk"><input type="checkbox" id="vAuto" checked> Tự xoay khi rảnh tay</label>
+      </div>
+    </div>
+    <div class="row"><button class="cta" id="viewClose" type="button">Đóng</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="trainScr" hidden>
   <div class="panel">
     <header><p class="eyebrow">Phòng tập</p><h2>Phản đòn khớp loại</h2>
@@ -135,4 +162,5 @@
 <script src="js/match.js"></script>
 <script src="js/results.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/preview.js"></script>
 <script src="js/main.js"></script>
