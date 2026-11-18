@@ -284,12 +284,13 @@ function poseFor(f,dt){
 function makeFighter(isBot){return{isBot,pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,hp:100,st:100,state:'idle',t:0,dur:0,atk:null,atkType:null,riposte:false,hitDone:false,
   parryStart:-9,perfectOK:true,lastParryRelease:-9,riposteUntil:0,lastSpend:-9,buffer:null,radius:.42,weapon:WEAPONS.sword,flash:0,deadT:0,walk:0,pose:Object.assign({},POSE.idle),atkStart:0};}
 const player=makeFighter(false),bot=makeFighter(true);
-let knight=null;
+// one knight model per bot; `knight` stays as the first one
+let knight=null,knights=[];
 function setupKnight(){
-  if(knight)scene.remove(knight.g);
-  knight=buildKnight(TABARD[CFG.diff]);
-  const wp=buildWeapon(bot.weapon.id);wp.w.scale.setScalar(K_WPN);knight.pivot.add(wp.w);knight.weapon=wp;
-  scene.add(knight.g);
+  for(const k of knights)scene.remove(k.g);knights=[];
+  for(const b of bots){const k=buildKnight(b.tab||TABARD[CFG.diff]);
+    const wp=buildWeapon(b.weapon.id);wp.w.scale.setScalar(K_WPN);k.pivot.add(wp.w);k.weapon=wp;scene.add(k.g);knights.push(k);}
+  knight=knights[0]||null;
 }
 let vm=null;const vmRoot=new THREE.Group();vmScene.add(vmRoot);
 const VM_WPN=.7,PLAYER_TAB=0x4b5a78;

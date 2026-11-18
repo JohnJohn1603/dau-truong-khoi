@@ -43,10 +43,11 @@ $('resBtn').onclick=()=>{
 $('resClose').onclick=()=>{$('resScr').hidden=true;$('menu').hidden=false;};
 function allSessions(){const seen=new Set(),out=[];for(const d of resDocs){for(const s of(Array.isArray(d.sessions)?d.sessions:[])){if(!s||typeof s!=='object'||seen.has(s.id))continue;seen.add(s.id);out.push(s);}}return out.sort((a,b)=>(a.at||0)-(b.at||0));}
 function renderResults(){
-  const ss=allSessions(),matches=ss.filter(s=>s.kind==='match'),trains=ss.filter(s=>s.kind==='train');
+  // free-for-all games are kept apart: the Phase 1 gate is about the 1v1 duel
+  const all=allSessions(),ffaN=all.filter(s=>s.gm==='ffa3').length,ss=all.filter(s=>s.gm!=='ffa3'),matches=ss.filter(s=>s.kind==='match'),trains=ss.filter(s=>s.kind==='train');
   const by={};for(const s of ss){const n=String(s.tester||'Ẩn danh');(by[n]=by[n]||[]).push(s);}
   const names=Object.keys(by);
-  $('resNote').textContent=ss.length?`${names.length} tester · ${matches.length} trận · ${trains.length} buổi tập. Cập nhật trực tiếp khi có kết quả mới.`:'Chưa có kết quả nào. Kết quả hiện ở đây khi có người chơi xong một trận hoặc một buổi tập.';
+  $('resNote').textContent=ss.length?`${names.length} tester · ${matches.length} trận · ${trains.length} buổi tập${ffaN?` (thêm ${ffaN} trận tự do 3 người, không tính vào cổng)`:''}. Cập nhật trực tiếp khi có kết quả mới.`:'Chưa có kết quả nào. Kết quả hiện ở đây khi có người chơi xong một trận hoặc một buổi tập.';
   // gate 1: wants to play again (latest answer per tester)
   let yes=0,ans=0;for(const n of names){const a=by[n].filter(s=>s.kind==='match'&&typeof s.again==='boolean');if(a.length){ans++;if(a[a.length-1].again)yes++;}}
   // gate 2: first easy match won within 5 minutes

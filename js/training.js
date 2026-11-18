@@ -26,7 +26,7 @@ function trainResult(ok,title,sub,kind,type,early){
 function startTraining(){
   initAudio();resetStats();score={p:0,b:0};round=1;mode='training';
   tstats={attempts:0,ok:0,earlySum:0,byType:{slash:{n:0,ok:0},over:{n:0,ok:0},stab:{n:0,ok:0}}};
-  player.weapon=WEAPONS[CFG.pw];bot.weapon=WEAPONS.sword;bot.windMul=CFG.tSpeed==='slow'?1.5:1;
+  setRoster(1);player.weapon=WEAPONS[CFG.pw];bot.weapon=WEAPONS.sword;bot.windMul=CFG.tSpeed==='slow'?1.5:1;
   setupKnight();setupViewmodel();
   $('wpnName').textContent=player.weapon.name;$('bBars').hidden=true;$('trainHud').hidden=false;$('quitBtn').textContent='Kết thúc buổi tập';
   $('thLast').textContent='Chờ bot ra đòn…';$('thLast').className='big info';
