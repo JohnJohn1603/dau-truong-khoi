@@ -1,4 +1,4 @@
-// Máy chủ phòng: tạo / vào phòng bằng mã 4 ký tự, sảnh chờ, chủ phòng bấm bắt đầu, bot lấp đủ 3 chỗ.
+// Máy chủ phòng: tạo / vào phòng bằng mã 4 ký tự, sảnh chờ, chủ phòng bấm bắt đầu, bot lấp đủ chỗ trống (phòng tối đa 5 người).
 // Mỗi phòng chạy một Sim (lõi chiến đấu dùng chung) 60 lần/giây và gửi ảnh chụp trạng thái 20 lần/giây.
 // Máy chủ quyết định mọi thứ; người chơi chỉ gửi thao tác. Thao tác phòng thủ được lùi thời điểm theo độ trễ (tối đa 150 ms),
 // và đòn trúng người chơi thật được xét muộn đúng chừng ấy để những thao tác đó kịp tính.
@@ -8,12 +8,13 @@ import { Sim, WEAPONS, DEFAULT_TUNING, TICK, type Diff, type Fighter, type Weapo
 import { FIELDS, type ClientMsg, type ServerMsg, type RosterWire } from './protocol.ts';
 
 const PORT = Number(process.env.PORT || 8787);
-const ROOM_SIZE = 3;
+const HOST = process.env.HOST || '0.0.0.0'; // Oracle: 127.0.0.1, chỉ Caddy (cổng 443) nói chuyện với máy chủ
+const ROOM_SIZE = 5;
 const SNAP_EVERY = 3;          // 60 Hz / 3 = 20 ảnh chụp mỗi giây
 const INTERP = .1;             // client hiển thị người khác chậm 100 ms để mượt
 const MAX_COMP = .15;          // bù độ trễ tối đa
-const FFA_BOTS = [{ name: 'Hiệp Sĩ Xám', short: 'Xám', tab: 0x4b5a78 }, { name: 'Kiếm Sư Đỏ', short: 'Đỏ', tab: 0x8e2222 }, { name: 'Lính Gác Rơm', short: 'Rơm', tab: 0x8a7a4a }];
-const HUMAN_TABS = [0x3d6b4a, 0x6a4b8a, 0x8a6a2a];
+const FFA_BOTS = [{ name: 'Hiệp Sĩ Xám', short: 'Xám', tab: 0x4b5a78 }, { name: 'Kiếm Sư Đỏ', short: 'Đỏ', tab: 0x8e2222 }, { name: 'Lính Gác Rơm', short: 'Rơm', tab: 0x8a7a4a }, { name: 'Thợ Săn Rừng', short: 'Rừng', tab: 0x2f6a6a }, { name: 'Vệ Binh Tro', short: 'Tro', tab: 0x5a4a44 }];
+const HUMAN_TABS = [0x3d6b4a, 0x6a4b8a, 0x8a6a2a, 0x2a5a8a, 0x8a3a6a];
 
 interface Client { ws: WebSocket; pid: number; name: string; weapon: WeaponId; room: Room | null; rtt: number; fid: number | null; ack: number; }
 interface Room { code: string; clients: Client[]; host: Client; diff: Diff; sim: Sim | null; loop: NodeJS.Timeout | null; tick: number; }
@@ -27,13 +28,13 @@ const comp = (c: Client) => Math.min(c.rtt + INTERP, MAX_COMP);
 
 function lobby(r: Room) {
   const players = r.clients.map(c => ({ pid: c.pid, name: c.name, host: c === r.host }));
-  for (const c of r.clients) send(c, { t: 'lobby', code: r.code, you: c.pid, players, diff: r.diff });
+  for (const c of r.clients) send(c, { t: 'lobby', code: r.code, you: c.pid, players, diff: r.diff, size: ROOM_SIZE });
 }
 
 function startRoom(r: Room) {
   if (r.sim) return;
   const pickW = (): WeaponId => Math.random() < .5 ? 'sword' : 'axe';
-  const entries = r.clients.map((c, i) => ({ name: c.name, short: c.name.slice(0, 6), tab: HUMAN_TABS[i % 3], weapon: WEAPONS[c.weapon], human: true }));
+  const entries = r.clients.map((c, i) => ({ name: c.name, short: c.name.slice(0, 6), tab: HUMAN_TABS[i % HUMAN_TABS.length], weapon: WEAPONS[c.weapon], human: true }));
   for (let i = 0; entries.length < ROOM_SIZE; i++) entries.push({ ...FFA_BOTS[i], weapon: WEAPONS[pickW()], human: false });
   const sim = new Sim({ ...DEFAULT_TUNING }, (Math.random() * 2 ** 31) | 0);
   sim.diff = r.diff;
@@ -88,7 +89,7 @@ function onMsg(c: Client, m: ClientMsg) {
       const room = rooms.get(String(m.code || '').toUpperCase().trim());
       if (!room) { send(c, { t: 'error', msg: 'Không có phòng nào với mã này.' }); break; }
       if (room.sim) { send(c, { t: 'error', msg: 'Phòng đang trong trận, chờ trận xong rồi vào lại.' }); break; }
-      if (room.clients.length >= ROOM_SIZE) { send(c, { t: 'error', msg: 'Phòng đã đủ 3 người.' }); break; }
+      if (room.clients.length >= ROOM_SIZE) { send(c, { t: 'error', msg: `Phòng đã đủ ${ROOM_SIZE} người.` }); break; }
       leave(c); c.name = cleanName(m.name); c.weapon = m.weapon === 'axe' ? 'axe' : 'sword'; room.clients.push(c); c.room = room; lobby(room); break;
     }
     case 'start':
@@ -125,7 +126,7 @@ function turnLimited(f: Fighter, yaw: number) {
   return f.yaw + Math.max(-cap, Math.min(cap, d));
 }
 
-// HTTP: trang kiểm tra sức khoẻ cho Fly.io (GET / → ok, kèm số phòng và người đang chơi); WebSocket dùng chung cổng
+// HTTP: trang kiểm tra sức khoẻ (GET / → ok, kèm số phòng và người đang chơi); WebSocket dùng chung cổng
 const http = createServer((req, res) => {
   const players = [...rooms.values()].reduce((n, r) => n + r.clients.length, 0);
   res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
@@ -137,4 +138,4 @@ wss.on('connection', ws => {
   ws.on('message', data => { let m: ClientMsg; try { m = JSON.parse(String(data)); } catch { return; } if (m && typeof m === 'object') onMsg(c, m); });
   ws.on('close', () => leave(c));
 });
-http.listen(PORT, '0.0.0.0', () => console.log(`Máy chủ Đấu Trường Khối chạy ở ws://localhost:${PORT}`));
+http.listen(PORT, HOST, () => console.log(`Máy chủ Đấu Trường Khối chạy ở ws://${HOST}:${PORT}`));

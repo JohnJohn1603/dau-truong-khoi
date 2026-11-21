@@ -1,0 +1,24 @@
+[Unit]
+Description=Đấu Trường Khối – máy chủ phòng chơi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=dtk
+WorkingDirectory=/opt/dtk
+Environment=PORT=8787
+Environment=HOST=127.0.0.1
+Environment=PATH=/opt/node/bin:/usr/bin:/bin
+ExecStart=/opt/node/bin/npx tsx server/src/server.ts
+Restart=always
+RestartSec=2
+# giới hạn để máy chủ không bao giờ ăn hết máy ảo nhỏ (1 GB RAM)
+MemoryMax=400M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/dtk
+
+[Install]
+WantedBy=multi-user.target

@@ -139,7 +139,7 @@
 
 <div class="overlay" id="netScr" hidden>
   <div class="panel">
-    <header><p class="eyebrow">Chơi qua mạng · đánh tự do 3 người</p><h2>Phòng chơi</h2>
+    <header><p class="eyebrow">Chơi qua mạng · đánh tự do tối đa 5 người</p><h2>Phòng chơi</h2>
       <p class="lede">Một người tạo phòng và gửi mã 4 ký tự cho bạn bè. Chỗ trống do bot đánh thay. Ai còn đứng cuối thắng hiệp, thắng 3 hiệp là thắng trận. Tên và vũ khí lấy từ menu.</p></header>
     <div class="opt"><label class="lbl" for="netUrl">Địa chỉ máy chủ</label><input class="txt" id="netUrl" placeholder="ws://localhost:8787" autocomplete="off"></div>
     <div id="netJoinBox" class="opts">
@@ -149,7 +149,7 @@
     </div>
     <div id="netLobby" class="opts" hidden>
       <div class="opt"><span class="lbl">Mã phòng · gửi cho bạn bè</span><div class="row"><b id="netRoomCode" class="roomcode">----</b><button class="ghost" id="netCopy" type="button">Sao chép mã</button></div></div>
-      <div class="opt"><span class="lbl">Người trong phòng (tối đa 3)</span><ol id="netPlayers" class="plist"></ol></div>
+      <div class="opt"><span class="lbl">Người trong phòng (tối đa <span id="netMax">5</span>)</span><ol id="netPlayers" class="plist"></ol></div>
       <div class="opt" id="netDiffRow"><span class="lbl">Độ khó bot lấp chỗ</span>
         <div class="seg" id="netDiff"><button type="button" data-v="easy">Dễ</button><button type="button" data-v="med">Vừa</button><button type="button" data-v="hard">Khó</button></div></div>
       <div class="row"><button class="cta" id="netStart" type="button">Bắt đầu</button><span class="savest" id="netWait">Chờ chủ phòng bấm bắt đầu…</span><button class="ghost" id="netLeave" type="button">Rời phòng</button></div>

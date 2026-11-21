@@ -1,6 +1,6 @@
 # Đấu Trường Khối
 
-Game đấu kiếm sinh tồn góc nhìn thứ nhất, đồ hoạ voxel, chạy trên trình duyệt. Hiện có đấu tay đôi với bot, đánh tự do 3 người (bạn và 2 bot) và phòng tập phản đòn. Thắng 3 hiệp trước là thắng trận.
+Game đấu kiếm sinh tồn góc nhìn thứ nhất, đồ hoạ voxel, chạy trên trình duyệt. Hiện có đấu tay đôi với bot, đánh tự do 3 người (bạn và 2 bot), phòng tập phản đòn, và phòng chơi qua mạng tối đa 5 người (chỗ trống do bot đánh thay). Thắng 3 hiệp trước là thắng trận.
 
 - **Trang game (chơi qua mạng được):** https://johnjohn1603.github.io/dau-truong-khoi/
 - **Bản trên claude.ai (chỉ chơi với bot):** https://claude.ai/artifact/5U3VY2e5M5hA5eaqv9Uens
@@ -23,7 +23,7 @@ Các lệnh khác:
 |---|---|
 | `npm run build` | Build client ra `client/dist/` (bản đưa lên claude.ai, sau này GitHub Pages) |
 | `npm run server` | Chạy máy chủ phòng chơi qua mạng ở `ws://localhost:8787` |
-| `npm run sim` | Chạy một trận đánh tự do 3 người trên Node.js, không cần trình duyệt, và kiểm tra tính tất định |
+| `npm run sim` | Chạy trận mô phỏng trên Node.js (tay đôi và phòng 5 người), không cần trình duyệt, và kiểm tra tính tất định |
 | `npm run typecheck` | Kiểm tra kiểu TypeScript cho `shared/` và `server/` |
 
 Khi chạy trên máy, phần lưu kết quả lên kho chung không hoạt động, vì kho này chỉ có trên claude.ai. Nút "Sao chép kết quả" vẫn dùng được.
@@ -52,25 +52,23 @@ Muốn chỉnh cân bằng thì sửa `WEAPONS` (thời gian vung, sát thương
 ## Chơi qua mạng (thử trên máy)
 
 1. Mở hai terminal trong thư mục dự án. Một bên chạy `npm run server`, bên kia chạy `npm run dev`.
-2. Mở http://localhost:5173 ở 2–3 cửa sổ trình duyệt, nhập tên khác nhau.
+2. Mở http://localhost:5173 ở 2–5 cửa sổ trình duyệt, nhập tên khác nhau.
 3. Cửa sổ thứ nhất: **Chơi qua mạng**, rồi **Tạo phòng**, nhận mã 4 ký tự. Các cửa sổ khác nhập mã đó rồi bấm **Vào phòng**.
 4. Chủ phòng chọn độ khó bot rồi bấm **Bắt đầu**. Chỗ trống do bot đánh thay. Ai rời giữa trận thì bot điều khiển thay người đó.
 
-Muốn bạn bè ở máy khác vào được thì máy chủ phải đặt trên mạng (bước 4 của kế hoạch: Fly.io Singapore, trang game trên GitHub Pages). Link claude.ai không kết nối được tới máy chủ ngoài, nên ở đó chỉ chơi được với bot.
+Muốn bạn bè ở máy khác vào được thì máy chủ phải đặt trên mạng: xem mục Triển khai. Link claude.ai không kết nối được tới máy chủ ngoài, nên ở đó chỉ chơi được với bot.
 
 Cách máy chủ giữ công bằng:
 - Máy chủ quyết định mọi thứ. Người chơi chỉ gửi thao tác.
 - Thao tác phòng thủ (đỡ, phản đòn, lách) được lùi thời điểm theo độ trễ của người bấm, tối đa 150 ms. Đòn trúng người chơi thật cũng được xét muộn đúng chừng ấy để những thao tác đó kịp tính.
 - Máy của bạn tự dự đoán chuyển động và đòn của chính bạn, nên thấy ngay, rồi khớp lại theo máy chủ. Người khác hiển thị chậm 100 ms, nội suy giữa các ảnh chụp trạng thái (20 lần/giây).
 
-## Triển khai
+## Triển khai (0 đồng)
 
-Mỗi lần push lên `main`, GitHub Actions (`.github/workflows/deploy.yml`) làm ba việc:
-1. kiểm tra kiểu và chạy một trận mô phỏng trên Node
-2. build trang game và đăng lên GitHub Pages, với địa chỉ máy chủ `wss://dtk-arena-sin.fly.dev` gắn sẵn
-3. triển khai máy chủ phòng lên Fly.io, vùng Singapore (`fly.toml`, `Dockerfile`), nếu repo có secret `FLY_API_TOKEN`
+- **Trang game:** mỗi lần push lên `main`, GitHub Actions (`.github/workflows/deploy.yml`) kiểm tra kiểu, chạy trận mô phỏng (có phòng 5 người), rồi build và đăng lên GitHub Pages. Địa chỉ máy chủ được gắn vào bản build từ biến repo `SERVER_URL`.
+- **Máy chủ phòng:** chạy trên máy ảo Oracle Cloud Always Free ở Singapore. Caddy và tên miền DuckDNS lo phần `wss://`. Cách cài từng bước và các nguyên tắc để không phát sinh chi phí: [deploy/oracle/README.md](deploy/oracle/README.md).
 
-Máy chủ dùng một máy duy nhất, tự tắt khi không ai chơi và tự bật khi có người kết nối. Lần kết nối đầu sau khi máy tắt sẽ chậm vài giây. Trang `https://dtk-arena-sin.fly.dev/` cho biết số phòng và số người đang chơi.
+Trang `https://<tên-miền>/` cho biết số phòng và số người đang chơi.
 
 ## Điều khiển
 
@@ -121,5 +119,5 @@ Các thông số chính (khoảng đỡ, khoảng phản đòn, tốc độ đò
 ## Trạng thái
 
 - Giai đoạn 1 (chiến đấu 1v1 với bot): đang chơi thử để xét cổng.
-- Giai đoạn 3a (phòng 3 người đánh tự do qua mạng): đã xong bước 1 (lõi cho N người, 60 Hz, giả lập ping) và bước 2 (Vite + TypeScript, `shared/` `client/` `server/`). Bước 3 (máy chủ phòng 3 người, `server/src/server.ts`) đã chạy được trên máy. Bước tiếp theo là đưa lên mạng.
+- Giai đoạn 3a (phòng 3 người đánh tự do qua mạng): đã xong bước 1 (lõi cho N người, 60 Hz, giả lập ping) và bước 2 (Vite + TypeScript, `shared/` `client/` `server/`). Bước 3 (máy chủ phòng, `server/src/server.ts`) đã chạy được, phòng nâng lên tối đa 5 người. Bước tiếp theo là đưa lên Oracle Always Free.
 - Client vẫn viết bằng JavaScript (module ES). Phần dùng chung với máy chủ đã là TypeScript; client sẽ chuyển dần sang TypeScript.
