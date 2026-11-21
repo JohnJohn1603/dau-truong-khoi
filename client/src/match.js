@@ -49,7 +49,7 @@ export function endMatch(){
   const st=G.stats;
   $('hud').hidden=true;if(document.pointerLockElement)document.exitPointerLock();
   const ffa=fighters.length>2,win=(player.wins||0)>=3,online=G.mode==='net';syncScore();
-  $('endEyebrow').textContent=online?`Kết thúc trận · Phòng ${net.code} · qua mạng`:ffa?`Kết thúc trận · Đánh tự do 3 người · bot ${BOT_CFG[CFG.diff].name}`:`Kết thúc trận · ${BOT_CFG[CFG.diff].name} · ${player.weapon.name} đấu ${bot.weapon.name}`;
+  $('endEyebrow').textContent=online?`Kết thúc trận · Phòng ${net.code} · ${fighters.length} người · qua mạng`:ffa?`Kết thúc trận · Đánh tự do 3 người · bot ${BOT_CFG[CFG.diff].name}`:`Kết thúc trận · ${BOT_CFG[CFG.diff].name} · ${player.weapon.name} đấu ${bot.weapon.name}`;
   $('endTitle').textContent=win?'Chiến thắng':'Thất bại';
   if(ffa)$('endSub').textContent='Số hiệp thắng: '+[...fighters].sort((a,b)=>(b.wins||0)-(a.wins||0)).map(f=>`${f.name} ${f.wins||0}`).join(' · ')+'.';
   else $('endSub').textContent=win?`Bạn hạ ${BOT_NAMES[CFG.diff]} với tỉ số ${G.score.p} – ${G.score.b}.`:`${BOT_NAMES[CFG.diff]} thắng ${G.score.b} – ${G.score.p}. Thử đỡ sớm hơn một chút, hoặc nhử đòn rồi đánh khi bot đang giữ đỡ.`;

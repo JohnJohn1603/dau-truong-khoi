@@ -19,7 +19,7 @@ export const FIELDS = ['id', 'x', 'z', 'vx', 'vz', 'yaw', 'hp', 'st', 'state', '
 
 export type ServerMsg =
   | { t: 'error'; msg: string }
-  | { t: 'lobby'; code: string; you: number; players: LobbyPlayer[]; diff: Diff }
+  | { t: 'lobby'; code: string; you: number; players: LobbyPlayer[]; diff: Diff; size: number }
   | { t: 'pong'; ct: number }
   | { t: 'start'; roster: RosterWire[]; you: number; tune: unknown }
   /** Ảnh chụp ~20 lần/giây: thời gian máy chủ, pha, hiệp, mọi người đấu (theo FIELDS), sự kiện kể từ ảnh trước, ack thao tác của người nhận. */

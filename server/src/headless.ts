@@ -30,4 +30,11 @@ console.log('Trận hạt giống 42:', a.seconds, 'giây mô phỏng,', a.round
 console.log('  sự kiện:', a.counts);
 console.log('Chạy lại hạt giống 42 cho cùng kết quả:', a.hash === b.hash && a.ticks === b.ticks ? 'CÓ' : 'KHÔNG');
 console.log('Hạt giống 7 cho trận khác:', c.hash !== a.hash ? 'CÓ' : 'KHÔNG', `(${c.seconds} giây, ${c.wins})`);
-console.log(`Thời gian chạy 3 trận: ${Date.now() - t0} ms`);
+// phòng 5 người qua mạng: máy chủ dựng bằng setupRoom (ở đây cả 5 đều là bot)
+const room = new Sim({ ...DEFAULT_TUNING }, 5); room.diff = 'hard';
+room.setupRoom(['Xám', 'Đỏ', 'Rơm', 'Rừng', 'Tro'].map((n, i) => ({ name: n, short: n, tab: 0, weapon: WEAPONS[i % 2 ? 'axe' : 'sword'], human: false })));
+room.startMatch();
+let rt = 0; while (room.phase !== 'matchEnd' && rt < 60 * 60 * 15) { room.step(TICK); room.drain(); rt++; }
+console.log('Phòng 5 người:', room.phase === 'matchEnd' ? 'xong trận' : 'KHÔNG xong', `(${(rt * TICK).toFixed(1)} giây, ${room.round} hiệp, ${room.fighters.map(f => `${f.short} ${f.wins}`).join(' · ')})`);
+if (room.phase !== 'matchEnd') process.exitCode = 1;
+console.log(`Thời gian chạy 4 trận: ${Date.now() - t0} ms`);

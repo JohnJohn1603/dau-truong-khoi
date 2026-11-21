@@ -17,7 +17,7 @@ const FIELDS = ['id', 'x', 'z', 'vx', 'vz', 'yaw', 'hp', 'st', 'state', 't', 'du
 // own-fighter events the client already produced when it predicted the action locally
 const OWN_PREDICTED = new Set(['swing', 'morph', 'dodge', 'feint', 'noStamina', 'dodgeNotReady']);
 
-export const net = { ws: null, code: null, you: null, pid: null, host: false, rtt: .08, seq: 0, ack: 0, lastSnap: null, srvNow: 0, recvAt: 0, inTick: 0, pingT: null, diff: 'med', players: [] };
+export const net = { ws: null, code: null, you: null, pid: null, host: false, rtt: .08, seq: 0, ack: 0, lastSnap: null, srvNow: 0, recvAt: 0, inTick: 0, pingT: null, diff: 'med', players: [], size: 5 };
 
 // local dev → the server on this machine; the published page → the address baked in at build time (VITE_SERVER_URL)
 const defaultUrl = () => CFG.netUrl || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? `ws://${location.hostname}:8787` : (import.meta.env.VITE_SERVER_URL || ''));
@@ -45,7 +45,7 @@ function onMsg(m) {
   switch (m.t) {
     case 'error': status(m.msg, 'warn'); break;
     case 'pong': net.rtt = net.rtt * .7 + ((performance.now() - m.ct) / 1000) * .3; $('netPing').textContent = Math.round(net.rtt * 1000) + ' ms'; break;
-    case 'lobby': net.code = m.code; net.pid = m.you; net.players = m.players; net.diff = m.diff; net.host = m.players.some(p => p.pid === m.you && p.host); renderLobby(); break;
+    case 'lobby': net.code = m.code; net.pid = m.you; net.players = m.players; net.diff = m.diff; net.size = m.size || 3; net.host = m.players.some(p => p.pid === m.you && p.host); renderLobby(); break;
     case 'start': onStart(m); break;
     case 'snap': applySnap(m); break;
     case 'ended': break; // the end screen comes from the matchEnd event; the lobby follows
@@ -55,7 +55,8 @@ function renderLobby() {
   showLobby(true);
   $('netRoomCode').textContent = net.code;
   $('netPlayers').innerHTML = '';
-  for (let i = 0; i < 3; i++) {
+  $('netMax').textContent = net.size;
+  for (let i = 0; i < net.size; i++) {
     const p = net.players[i], li = document.createElement('li');
     li.textContent = p ? p.name + (p.host ? ' · chủ phòng' : '') + (p.pid === net.pid ? ' (bạn)' : '') : 'Chỗ trống · bot sẽ vào thay';
     if (!p) li.className = 'empty';
@@ -91,7 +92,7 @@ function onStart(m) {
   for (const b of bots) { b.hist = []; b.ghost = null; b.pose = null; }
   player.pose = null; player.name = 'Bạn'; player.short = 'Bạn';
   setupKnight(); setupViewmodel();
-  $('botName').textContent = 'Phòng ' + net.code + ' · 3 người'; $('botDiff').textContent = 'bot ' + BOT_CFG[net.diff].name; $('wpnName').textContent = player.weapon.name;
+  $('botName').textContent = 'Phòng ' + net.code + ' · ' + m.roster.length + ' người'; $('botDiff').textContent = 'bot ' + BOT_CFG[net.diff].name; $('wpnName').textContent = player.weapon.name;
   $('trainHud').hidden = true; $('bBars').hidden = false; $('quitBtn').textContent = 'Rời trận';
   $('netScr').hidden = true; $('menu').hidden = true; $('endScr').hidden = true; $('pause').hidden = true; $('hud').hidden = false; G.paused = false;
   G.matchStart = sim.now; G.fpsFrames = 0; G.fpsTime = 0;
