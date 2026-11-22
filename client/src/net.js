@@ -30,6 +30,29 @@ function connect(then) {
   if (!url) { status('Nhập địa chỉ máy chủ (ví dụ ws://localhost:8787).', 'warn'); return; }
   CFG.netUrl = url; save();
   if (net.ws && net.ws.readyState === 1) { then(); return; }
+  if (net.connecting) return;
+  net.connecting = true;
+  wake(url).then(ok => { net.connecting = false; if (ok) openSocket(url, then); });
+}
+// Máy chủ gói miễn phí (Render) ngủ khi không ai chơi: gọi trang kiểm tra sức khoẻ (https://…/) cho tới khi máy chủ thức, rồi mới mở WebSocket.
+async function wake(url) {
+  let http;
+  try { const u = new URL(url); if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'; http = u.href; }
+  catch (e) { status('Địa chỉ máy chủ không hợp lệ.', 'warn'); return false; }
+  const t0 = performance.now(), LIMIT = 120;
+  for (let i = 0; ; i++) {
+    const s = Math.round((performance.now() - t0) / 1000);
+    status(i === 0 ? 'Đang kết nối…' : `Máy chủ đang thức dậy sau khi ngủ, chờ chút… (${s} giây)`);
+    try {
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch(http, { cache: 'no-store', signal: ctl.signal }); clearTimeout(to);
+      if (r.ok) { const j = await r.json().catch(() => null); if (j && j.ok) return true; }
+    } catch (e) { }
+    if (s > LIMIT) { status('Máy chủ không phản hồi. Thử lại sau ít phút, hoặc kiểm tra địa chỉ máy chủ.', 'warn'); return false; }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+}
+function openSocket(url, then) {
   status('Đang kết nối…');
   let ws;
   try { ws = new WebSocket(url); } catch (e) { status('Địa chỉ máy chủ không hợp lệ.', 'warn'); return; }

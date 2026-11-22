@@ -66,7 +66,8 @@ Cách máy chủ giữ công bằng:
 ## Triển khai (0 đồng)
 
 - **Trang game:** mỗi lần push lên `main`, GitHub Actions (`.github/workflows/deploy.yml`) kiểm tra kiểu, chạy trận mô phỏng (có phòng 5 người), rồi build và đăng lên GitHub Pages. Địa chỉ máy chủ được gắn vào bản build từ biến repo `SERVER_URL`.
-- **Máy chủ phòng:** chạy trên máy ảo Oracle Cloud Always Free ở Singapore. Caddy và tên miền DuckDNS lo phần `wss://`. Cách cài từng bước và các nguyên tắc để không phát sinh chi phí: [deploy/oracle/README.md](deploy/oracle/README.md).
+- **Máy chủ phòng, hiện tại: Render gói miễn phí, vùng Singapore** (`render.yaml`, không cần thẻ). Trên Render chọn **New → Blueprint**, chọn repo này; mỗi lần push lên `main` Render tự triển khai lại. Máy chủ ngủ sau khoảng 15 phút không ai chơi; khi có người bấm Tạo phòng hoặc Vào phòng, trang game tự đánh thức máy chủ (mất khoảng 30–60 giây) rồi mới kết nối.
+- **Máy chủ phòng, khi Oracle có chỗ:** máy ảo Oracle Cloud Always Free ở Singapore, không ngủ. Caddy và tên miền DuckDNS (`bw-arena.duckdns.org`) lo phần `wss://`. Cách cài từng bước và các nguyên tắc để không phát sinh chi phí: [deploy/oracle/README.md](deploy/oracle/README.md). Chuyển sang Oracle chỉ cần đổi biến `SERVER_URL`.
 
 Trang `https://<tên-miền>/` cho biết số phòng và số người đang chơi.
 

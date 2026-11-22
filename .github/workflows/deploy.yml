@@ -1,8 +1,8 @@
 # Mỗi lần push lên main:
 #  1. kiểm tra kiểu và chạy trận mô phỏng (có phòng 5 người)
 #  2. build trang game và đăng lên GitHub Pages, gắn sẵn địa chỉ máy chủ lấy từ biến repo SERVER_URL
-#     (Settings → Secrets and variables → Actions → Variables, ví dụ wss://dtk-arena.duckdns.org)
-# Máy chủ phòng chạy trên máy ảo Oracle Always Free, cập nhật bằng deploy/oracle/update.sh (xem README).
+#     (Settings → Secrets and variables → Actions → Variables, ví dụ wss://dtk-arena.onrender.com)
+# Máy chủ phòng: Render tự triển khai theo render.yaml; hoặc Oracle Always Free (deploy/oracle). Xem README.
 name: Triển khai
 on:
   push:

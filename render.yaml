@@ -1,0 +1,24 @@
+# Máy chủ phòng chơi trên Render, gói miễn phí, vùng Singapore.
+# Trên Render: New → Blueprint → chọn repo này. Render đọc file này và tự tạo dịch vụ.
+# Gói miễn phí ngủ sau ~15 phút không ai kết nối; trang game tự đánh thức (gọi trang kiểm tra sức khoẻ rồi mới mở WebSocket).
+services:
+  - type: web
+    name: dtk-arena
+    runtime: node
+    region: singapore
+    plan: free
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci -w server --include-workspace-root --no-audit --no-fund
+    startCommand: npx tsx server/src/server.ts
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - shared/**
+        - server/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.1
